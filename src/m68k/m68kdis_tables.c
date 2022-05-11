@@ -1,0 +1,889 @@
+#include "m68kinternal.h"
+
+/*
+    an instruction is considered valid if
+    
+    1) the first opcode word (word 0) is filtered with a mask and the result matches a fixed value AND
+    2) all actions are valid; actions are used to check operand values, read extensions words, read immediate values, etc.
+
+    to speed up the checks we'll have separate tables for each opcode map;
+    the tables have the following layout:
+
+    M68K_WORD   Mask 1
+    M68K_WORD   Number of instructions for mask 1
+    M68K_WORD   Skip mask 1
+    M68K_WORD   Skip value 1
+        M68K_WORD   Value for instruction 1 using mask 1
+        M68K_WORD   Type for instruction 1 using mask 1
+        M68K_WORD   Action 1 for instruction 1 using mask 1
+        M68K_WORD   Action 2 for instruction 1 using mask 1
+        M68K_WORD   Action 3 for instruction 1 using mask 1
+        M68K_WORD   Action 4 for instruction 1 using mask 1
+        M68K_WORD   Action 5 for instruction 1 using mask 1
+        M68K_WORD   Action 6 for instruction 1 using mask 1
+
+        M68K_WORD   Value for instruction 2 using mask 1
+        M68K_WORD   Type for instruction 2 using mask 1
+        M68K_WORD   Action 1 for instruction 2 using mask 1
+        M68K_WORD   Action 2 for instruction 2 using mask 1
+        M68K_WORD   Action 3 for instruction 2 using mask 1
+        M68K_WORD   Action 4 for instruction 2 using mask 1
+        M68K_WORD   Action 5 for instruction 2 using mask 1
+        M68K_WORD   Action 6 for instruction 2 using mask 1
+        ...
+    ...
+    M68K_WORD   Mask 2
+    M68K_WORD   Number of instructions for mask 2
+    M68K_WORD   Skip mask 2
+    M68K_WORD   Skip value 2
+    ...
+    M68K_WORD   0
+
+    #### IMPORTANT: keep the masks with more bits at the start of the table i.e. number_bits(mask N) >= number_bits(mask N+1) ####
+*/
+
+#define _AC(t)                      DAT_C_##t
+#define _AF(t)                      DAT_F_##t
+#define _AFPOP(t)                   DAT_FPOP_##t
+#define _ANONE                      DAT_NONE
+#define _AO(t)                      DAT_O_##t
+#define _AS(t)                      DAT_S_##t
+#define _I(v,t,a1,a2,a3,a4,a5,a6)   _V(v), _V(IT_##t), _V(a1), _V(a2), _V(a3), _V(a4), _V(a5), _V(a6)
+#define _M(v,c)                     _MS(v,c,0,0)
+#define _MS(v,c,sm,sv)              _V(v), _V(c), _V(sm), _V(sv)
+#define _STOP                       _V(0)
+#define _V(v)                       (M68K_WORD)(v)
+
+// table of instructions for opcode map 0
+M68KC_WORD _M68KDisOpcodeMap0[] =
+{
+    _M(0xffff, 8),
+    _I(0x003c, ORI_TO_CCR, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(RegCCR_I), _ANONE, _ANONE),
+    _I(0x007c, ORI_TO_SR, _AS(W_I), _AO(ImmW_NW), _AO(RegSR_I), _ANONE, _ANONE, _ANONE),
+    _I(0x023c, ANDI_TO_CCR, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(RegCCR_I), _ANONE, _ANONE),
+    _I(0x027c, ANDI_TO_SR, _AS(W_I), _AO(ImmW_NW), _AO(RegSR_I), _ANONE, _ANONE, _ANONE),
+    _I(0x0a3c, EORI_TO_CCR, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(RegCCR_I), _ANONE, _ANONE),
+    _I(0x0a7c, EORI_TO_SR, _AS(W_I), _AO(ImmW_NW), _AO(RegSR_I), _ANONE, _ANONE, _ANONE),
+    _I(0x0cfc, CAS2, _AC(V0000M0e38_EW1), _AC(V0000M0e38_EW2), _AS(W_I), _AO(DRegP_S0E2EW1_S0E2EW2), _AO(DRegP_S6E8EW1_S6E8EW2), _AO(MRegP_S12E15EW1_S12E15EW2)),
+    _I(0x0efc, CAS2, _AC(V0000M0e38_EW1), _AC(V0000M0e38_EW2), _AS(L_I), _AO(DRegP_S0E2EW1_S0E2EW2), _AO(DRegP_S6E8EW1_S6E8EW2), _AO(MRegP_S12E15EW1_S12E15EW2)),
+
+    _M(0xfff8, 6),
+    _I(0x06c0, RTM, _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x06c8, RTM, _AO(AReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x0800, BTST_IMM, _AC(V0000Mff00_EW1), _AS(L_I), _AO(ImmB_S0E7EW1), _AO(DReg_S0E2W0), _ANONE, _ANONE),
+    _I(0x0840, BCHG_IMM, _AC(V0000Mff00_EW1), _AS(L_I), _AO(ImmB_S0E7EW1), _AO(DReg_S0E2W0), _ANONE, _ANONE),
+    _I(0x0880, BCLR_IMM, _AC(V0000Mff00_EW1), _AS(L_I), _AO(ImmB_S0E7EW1), _AO(DReg_S0E2W0), _ANONE, _ANONE),
+    _I(0x08c0, BSET_IMM, _AC(V0000Mff00_EW1), _AS(L_I), _AO(ImmB_S0E7EW1), _AO(DReg_S0E2W0), _ANONE, _ANONE),
+
+    _M(0xffc0,14),
+    _I(0x06c0, ADDIW, _AS(L_I), _AO(ImmW_NW), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x06c0, CALLM, _AC(V0000Mff00_EW1), _AO(ImmB_S0E7EW1), _AO(AModeC_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0800, BTST_IMM, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE),
+    _I(0x0840, BCHG_IMM, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE),
+    _I(0x0880, BCLR_IMM, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE),
+    _I(0x08c0, BSET_IMM, _AC(V0000Mff00_EW1), _AS(B_I), _AO(ImmB_S0E7EW1), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE),
+    _I(0x0e40, MOVEX, _AC(V0010M8e7f_EW1), _AS(W_I), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80DReg_S12E14EW1_S7E7EW1), _ANONE, _ANONE),
+    _I(0x0e40, MOVEX, _AC(V0810M8e7f_EW1), _AS(W_I), _AO(AC80DReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE, _ANONE),
+    _I(0x0e40, MOVEX, _AC(V8010M8e7f_EW1), _AS(W_I), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80AReg_S12E14EW1_S7E7EW1), _ANONE, _ANONE),
+    _I(0x0e40, MOVEX, _AC(V8810M8e7f_EW1), _AS(W_I), _AO(AC80AReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE, _ANONE),
+    _I(0x0e80, MOVEX, _AC(V0010M8e7f_EW1), _AS(L_I), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80DReg_S12E14EW1_S7E7EW1), _ANONE, _ANONE),
+    _I(0x0e80, MOVEX, _AC(V0810M8e7f_EW1), _AS(L_I), _AO(AC80DReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE, _ANONE),
+    _I(0x0e80, MOVEX, _AC(V8010M8e7f_EW1), _AS(L_I), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80AReg_S12E14EW1_S7E7EW1), _ANONE, _ANONE),
+    _I(0x0e80, MOVEX, _AC(V8810M8e7f_EW1), _AS(L_I), _AO(AC80AReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE, _ANONE),
+
+    _M(0xf1f8, 4),
+    _I(0x0100, BTST, _AS(L_I), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0140, BCHG, _AS(L_I), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0180, BCLR, _AS(L_I), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0x01c0, BSET, _AS(L_I), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1b8, 2),
+    _I(0x0108, MOVEP, _AS(WL_S6E6W0), _AO(AModeIAD_S0E2W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0188, MOVEP, _AS(WL_S6E6W0), _AO(DReg_S9E11W0), _AO(AModeIAD_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xff00, 14),
+    _I(0x0000, ORI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0200, ANDI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0400, SUBI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0600, ADDI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0c00, CMPI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDAPC_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0a00, EORI, _AS(BWL_S6E7W0), _AO(ImmS), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0e00, MOVES_AC80, _AC(V0000M8e7f_EW1), _AF(AMode1B), _AS(BWL_S6E7W0), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80DReg_S12E14EW1_S7E7EW1), _ANONE),
+    _I(0x0e00, MOVES_AC80, _AC(V0800M8e7f_EW1), _AF(AMode1B), _AS(BWL_S6E7W0), _AO(AC80DReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE),
+    _I(0x0e00, MOVES_AC80, _AC(V8000M8e7f_EW1), _AF(AMode1B), _AS(BWL_S6E7W0), _AO(AC80AMode_S0E5W0_S8E8EW1), _AO(AC80AReg_S12E14EW1_S7E7EW1), _ANONE),
+    _I(0x0e00, MOVES_AC80, _AC(V8800M8e7f_EW1), _AF(AMode1B), _AS(BWL_S6E7W0), _AO(AC80AReg_S12E14EW1_S7E7EW1), _AO(AC80AModeA_S0E5W0_S8E8EW1), _ANONE),
+    _I(0x0e00, MOVES, _AC(V0000M8fff_EW1), _AS(BWL_S6E7W0), _AO(AModeMA_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x0e00, MOVES, _AC(V0800M8fff_EW1), _AS(BWL_S6E7W0), _AO(DReg_S12E14EW1), _AO(AModeMA_S0E5W0), _ANONE, _ANONE),
+    _I(0x0e00, MOVES, _AC(V8000M8fff_EW1), _AS(BWL_S6E7W0), _AO(AModeMA_S0E5W0), _AO(AReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x0e00, MOVES, _AC(V8800M8fff_EW1), _AS(BWL_S6E7W0), _AO(AReg_S12E14EW1), _AO(AModeMA_S0E5W0), _ANONE, _ANONE),
+
+    _M(0xffc0, 3),
+    _I(0x0ac0, CAS, _AC(V0000Mfe1c_EW1), _AS(B_I), _AO(DReg_S0E2EW1), _AO(DReg_S6E8EW1), _AO(AModeMA_S0E5W0), _ANONE),
+    _I(0x0cc0, CAS, _AC(V0000Mfe1c_EW1), _AS(W_I), _AO(DReg_S0E2EW1), _AO(DReg_S6E8EW1), _AO(AModeMA_S0E5W0), _ANONE),
+    _I(0x0ec0, CAS, _AC(V0000Mfe1c_EW1), _AS(L_I), _AO(DReg_S0E2EW1), _AO(DReg_S6E8EW1), _AO(AModeMA_S0E5W0), _ANONE),
+
+    _M(0xf9c0, 4),
+    _I(0x00c0, CMP2, _AC(V0000M8fff_EW1), _AS(BWL_S9E10W0), _AO(AModeC_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x00c0, CHK2, _AC(V0800M8fff_EW1), _AS(BWL_S9E10W0), _AO(AModeC_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x00c0, CMP2, _AC(V8000M8fff_EW1), _AS(BWL_S9E10W0), _AO(AModeC_S0E5W0), _AO(AReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x00c0, CHK2, _AC(V8800M8fff_EW1), _AS(BWL_S9E10W0), _AO(AModeC_S0E5W0), _AO(AReg_S12E14EW1), _ANONE, _ANONE),
+
+    _M(0xf1c0, 4),
+    _I(0x0100, BTST, _AS(B_I), _AO(DReg_S9E11W0), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0140, BCHG, _AS(B_I), _AO(DReg_S9E11W0), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x0180, BCLR, _AS(B_I), _AO(DReg_S9E11W0), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x01c0, BSET, _AS(B_I), _AO(DReg_S9E11W0), _AO(AModeDAM_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 1
+M68KC_WORD _M68KDisOpcodeMap1[] =
+{
+    _M(0xf1c0, 1),
+    _I(0x1040, MOVE_AC80, _AS(L_I), _AO(AMode_S0E5W0), _AO(AC80BReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf038, 1),
+    _I(0x1008, MOVE_AC80, _AS(L_I), _AO(AC80BReg_S0E2W0), _AO(AModeDA_S6E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf000, 1),
+    _I(0x1000, MOVE, _AS(B_I), _AO(AMode_S0E5W0), _AO(AModeDA_S6E11W0), _ANONE, _ANONE, _ANONE),
+    
+    _STOP
+};
+
+// table of instructions for opcode map 2
+M68KC_WORD _M68KDisOpcodeMap2[] =
+{
+    _M(0xf1c0, 1),
+    _I(0x2040, MOVEA, _AS(L_I), _AO(AMode_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf000, 1),
+    _I(0x2000, MOVE, _AS(L_I), _AO(AMode_S0E5W0), _AO(AModeDA_S6E11W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 3
+M68KC_WORD _M68KDisOpcodeMap3[] =
+{
+    _M(0xf1c0, 1),
+    _I(0x3040, MOVEA, _AS(W_I), _AO(AMode_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf000, 1),
+    _I(0x3000, MOVE, _AS(W_I), _AO(AMode_S0E5W0), _AO(AModeDA_S6E11W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 4
+M68KC_WORD _M68KDisOpcodeMap4[] =
+{
+    _M(0xffff, 15),
+    _I(0x4e70, RESET, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e71, NOP, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e72, STOP, _AO(ImmW_NW), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e73, RTE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e74, RTD, _AO(ImmW_NW), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e75, RTS, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e76, TRAPV, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e77, RTR, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e78, RPC, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e7a, MOVEC, _AC(V0000M8000_EW1), _AS(L_I), _AO(CReg_S0E11EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4e7a, MOVEC, _AC(V8000M8000_EW1), _AS(L_I), _AO(CReg_S0E11EW1), _AO(AReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4e7b, MOVEC, _AC(V0000M8000_EW1), _AS(L_I), _AO(DReg_S12E14EW1), _AO(CReg_S0E11EW1), _ANONE, _ANONE),
+    _I(0x4e7b, MOVEC, _AC(V8000M8000_EW1), _AS(L_I), _AO(AReg_S12E14EW1), _AO(CReg_S0E11EW1), _ANONE, _ANONE),
+    _I(0x4afa, BGND, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4afc, ILLEGAL, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xfff8, 12),
+    _I(0x4808, LINK_LONG, _AS(L_I), _AO(AReg_S0E2W0), _AO(ImmL_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x4840, SWAP, _AS(W_I), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4848, BKPT, _AO(ImmB_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x49c0, EXTB, _AS(L_I), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4cc0, PERM, _AC(V0000M8000_EW1), _AS(L_I), _AO(ImmW_S0E11EW1), _AO(DReg_S0E2W0), _AO(DReg_S12E14EW1), _ANONE),
+    _I(0x4cc0, PERM, _AC(V8000M8000_EW1), _AS(L_I), _AO(ImmW_S0E11EW1), _AO(DReg_S0E2W0), _AO(AReg_S12E14EW1), _ANONE),
+    _I(0x4cc8, PERM, _AC(V0000M8000_EW1), _AS(L_I), _AO(ImmW_S0E11EW1), _AO(AReg_S0E2W0), _AO(DReg_S12E14EW1), _ANONE),
+    _I(0x4cc8, PERM, _AC(V8000M8000_EW1), _AS(L_I), _AO(ImmW_S0E11EW1), _AO(AReg_S0E2W0), _AO(AReg_S12E14EW1), _ANONE),
+    _I(0x4e50, LINK, _AS(W_I), _AO(AReg_S0E2W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x4e58, UNLK, _AO(AReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4e60, MOVE_TO_USP, _AS(L_I), _AO(AReg_S0E2W0), _AO(RegUSP_I), _ANONE, _ANONE, _ANONE),
+    _I(0x4e68, MOVE_FROM_USP, _AS(L_I), _AO(RegUSP_I), _AO(AReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xfff0, 1),
+    _I(0x4e40, TRAP, _AO(ImmB_S0E3W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xffb8, 1),
+    _I(0x4880, EXT, _AS(WL_S6E6W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xffc0, 18),
+    _I(0x40c0, MOVE_FROM_SR, _AS(W_I), _AO(RegSR_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x42c0, MOVE_FROM_CCR, _AS(W_I), _AO(RegCCR_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x44c0, MOVE_TO_CCR, _AS(W_I), _AO(AModeD_S0E5W0), _AO(RegCCR_I), _ANONE, _ANONE, _ANONE),
+    _I(0x46c0, MOVE_TO_SR, _AS(W_I), _AO(AModeD_S0E5W0), _AO(RegSR_I), _ANONE, _ANONE, _ANONE),
+    _I(0x4800, NBCD, _AS(B_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4840, PEA, _AS(L_I), _AO(AModeC_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4ac0, TAS, _AS(B_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4c00, MULU_LONG, _AC(V0000M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c00, MULU_LONG, _AC(V0400M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c00, MULS_LONG, _AC(V0800M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c00, MULS_LONG, _AC(V0c00M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c40, DIVUL, _AC(V0000M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c40, DIVU_LONG, _AC(V0400M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c40, DIVSL, _AC(V0800M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4c40, DIVS_LONG, _AC(V0c00M8ff8_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(DRegP_S0E2EW1_S12E14EW1), _ANONE, _ANONE),
+    _I(0x4e00, CMPIW, _AS(L_I), _AO(ImmW_NW), _AO(AC80AModeA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x4e80, JSR, _AO(AModeC_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4ec0, JMP, _AO(AModeC_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1f8, 1),
+    _I(0x41c8, LEA, _AS(L_I), _AO(AC80BReg_S0E2W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xff80, 2),
+    _I(0x4880, MOVEM, _AS(WL_S6E6W0), _AO(RegList_EW1), _AO(AModeCAPD_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x4c80, MOVEM, _AS(WL_S6E6W0), _AO(AModeCPI_S0E5W0), _AO(RegList_EW1), _ANONE, _ANONE, _ANONE),
+
+    _M(0xff00, 5),
+    _I(0x4000, NEGX, _AS(BWL_S6E7W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4200, CLR, _AS(BWL_S6E7W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4400, NEG, _AS(BWL_S6E7W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4600, NOT, _AS(BWL_S6E7W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x4a00, TST, _AS(BWL_S6E7W0), _AO(AModeTST_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1c0, 4),
+    _I(0x4100, CHK_LONG, _AS(L_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x4140, LEA, _AS(L_I), _AO(AModeC_S0E5W0), _AO(AC80BReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x4180, CHK, _AS(W_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x41c0, LEA, _AS(L_I), _AO(AModeC_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 5
+M68KC_WORD _M68KDisOpcodeMap5[] =
+{
+    _M(0xf0ff, 3),
+    _I(0x50fa, TRAPCC, _AS(W_I), _AO(CC_S8E11W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x50fb, TRAPCC, _AS(L_I), _AO(CC_S8E11W0), _AO(ImmL_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x50fc, TRAPCC, _AO(CC_S8E11W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1f8, 2),
+    _I(0x5008, ADDQ, _AS(L_I), _AO(ImmB_S9E11W0), _AO(AC80BReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0x5108, SUBQ, _AS(L_I), _AO(ImmB_S9E11W0), _AO(AC80BReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf0f8, 1),
+    _I(0x50c8, DBCC, _AS(W_I), _AO(CC_S8E11W0), _AO(DReg_S0E2W0), _AO(DispW_NW), _ANONE, _ANONE),
+
+    _M(0xf0c0, 1),
+    _I(0x50c0, SCC, _AS(B_I), _AO(CC_S8E11W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf100, 2),
+    _I(0x5000, ADDQ, _AS(BWL_S6E7W0), _AO(ImmB_S9E11W0), _AO(AModeA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0x5100, SUBQ, _AS(BWL_S6E7W0), _AO(ImmB_S9E11W0), _AO(AModeA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 6
+M68KC_WORD _M68KDisOpcodeMap6[] =
+{
+    _M(0xffff, 4),
+    _I(0x6000, BRA, _AS(W_I), _AO(DispW_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x60ff, BRA, _AS(L_I), _AO(DispL_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x6100, BSR, _AS(W_I), _AO(DispW_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x61ff, BSR, _AS(L_I), _AO(DispL_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xf0ff, 2),
+    _I(0x6000, BCC, _AS(W_I), _AO(CC2H_S8E11W0), _AO(DispW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x60ff, BCC_LONG, _AS(L_I), _AO(CC2H_S8E11W0), _AO(DispL_NW), _ANONE, _ANONE, _ANONE),
+
+    _M(0xff00, 2),
+    _I(0x6000, BRA, _AS(B_I), _AO(DispB_S0E7W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0x6100, BSR, _AS(B_I), _AO(DispB_S0E7W0), _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _M(0xf000, 1),
+    _I(0x6000, BCC, _AS(B_I), _AO(CC2H_S8E11W0), _AO(DispB_S0E7W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 7
+M68KC_WORD _M68KDisOpcodeMap7[] =
+{
+    _M(0xf100, 2),
+    _I(0x7000, MOVEQ, _AS(L_I), _AO(ImmB_S0E7W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x7100, BANK, _AO(ImmB_S2E3W0), _AO(ImmB_S0E1W0), _AO(ImmB_S9E11W0_S4E5W0), _AO(AC80BankEWSize_S6E7W0), _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 8
+M68KC_WORD _M68KDisOpcodeMap8[] =
+{
+    _M(0xf1f8, 4),
+    _I(0x8140, PACK, _AO(DReg_S0E2W0), _AO(DReg_S9E11W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x8148, PACK, _AO(AModePD_S0E2W0), _AO(AModePD_S9E11W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x8180, UNPK, _AO(DReg_S0E2W0), _AO(DReg_S9E11W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0x8188, UNPK, _AO(AModePD_S0E2W0), _AO(AModePD_S9E11W0), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1c0, 2),
+    _I(0x80c0, DIVU, _AS(W_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x81c0, DIVS, _AS(W_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf100, 2),
+    _I(0x8000, OR, _AS(BWL_S6E7W0), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x8100, OR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 9
+M68KC_WORD _M68KDisOpcodeMap9[] =
+{
+    _M(0xf138, 2),
+    _I(0x9100, SUBX, _AS(BWL_S6E7W0), _AO(DReg_S0E2W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x9108, SUBX, _AS(BWL_S6E7W0), _AO(AModePD_S0E2W0), _AO(AModePD_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf0c0, 1),
+    _I(0x90c0, SUBA, _AS(WL_S8E8W0), _AO(AMode_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf100, 2),
+    _I(0x9000, SUB, _AS(BWL_S6E7W0), _AO(AMode_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0x9100, SUB, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 10
+M68KC_WORD _M68KDisOpcodeMap10[] =
+{
+    _STOP
+};
+
+// table of instructions for opcode map 11
+M68KC_WORD _M68KDisOpcodeMap11[] =
+{
+    _M(0xf0c0, 1),
+    _I(0xb0c0, CMPA, _AS(WL_S8E8W0), _AO(AMode_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    
+    _M(0xf138, 1),
+    _I(0xb108, CMPM, _AS(BWL_S6E7W0), _AO(AModePI_S0E2W0), _AO(AModePI_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf100, 2),
+    _I(0xb000, CMP, _AS(BWL_S6E7W0), _AO(AMode_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xb100, EOR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 12
+M68KC_WORD _M68KDisOpcodeMap12[] =
+{
+    _M(0xf1f8, 6),
+    _I(0xc100, ABCD, _AS(B_I), _AO(DReg_S0E2W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc108, ABCD, _AS(B_I), _AO(AModePD_S0E2W0), _AO(AModePD_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc140, EXG_D_D, _AS(L_I), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc148, EXG_A_A, _AS(L_I), _AO(AReg_S9E11W0), _AO(AReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc180, CMP, _AS(L_I), _AO(AC80BReg_S0E2W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc188, EXG_D_A, _AS(L_I), _AO(DReg_S9E11W0), _AO(AReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xc1c0, 2),
+    _I(0xc0c0, MULU, _AS(W_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc1c0, MULS, _AS(W_I), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf100, 2),
+    _I(0xc000, AND, _AS(BWL_S6E7W0), _AO(AModeD_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xc100, AND, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 13
+M68KC_WORD _M68KDisOpcodeMap13[] =
+{
+    _M(0xf138, 2),
+    _I(0xd100, ADDX, _AS(BWL_S6E7W0), _AO(DReg_S0E2W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xd108, ADDX, _AS(BWL_S6E7W0), _AO(AModePD_S0E2W0), _AO(AModePD_S9E11W0), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf0c0, 1),
+    _I(0xd0c0, ADDA, _AS(WL_S8E8W0), _AO(AMode_S0E5W0), _AO(AReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    
+    _M(0xf100, 2),
+    _I(0xd000, ADD, _AS(BWL_S6E7W0), _AO(AMode_S0E5W0), _AO(DReg_S9E11W0), _ANONE, _ANONE, _ANONE),
+    _I(0xd100, ADD, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    
+    _STOP
+};
+
+// table of instructions for opcode map 14
+M68KC_WORD _M68KDisOpcodeMap14[] =
+{
+    _M(0xffc0, 16),
+    _I(0xe0c0, ASR, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe1c0, ASL, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe2c0, LSR, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe3c0, LSL, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe4c0, ROXR, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe5c0, ROXL, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe6c0, ROR, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe7c0, ROL, _AS(W_I), _AO(AModeMA_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xe8c0, BFTST, _AC(V0000M8000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xe9c0, BFEXTU, _AC(V0000M8000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xeac0, BFCHG, _AC(V0000Mf000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xebc0, BFEXTS, _AC(V0000M8000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xecc0, BFCLR, _AC(V0000Mf000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xedc0, BFFFO, _AC(V0000M8000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xeec0, BFSET, _AC(V0000M8000_EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xefc0, BFINS, _AC(V0000M8000_EW1), _AO(DReg_S12E14EW1), _AO(AModeDRDCA_S0E5W0), _AO(OW_S0E11EW1), _ANONE, _ANONE),
+
+    _M(0xf138, 16),
+    _I(0xe000, ASR, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe008, LSR, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe010, ROXR, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe018, ROR, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe020, ASR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe028, LSR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe030, ROXR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe038, ROR, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe108, LSL, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe100, ASL, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe110, ROXL, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe118, ROL, _AS(BWL_S6E7W0), _AO(Shift8_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe120, ASL, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe128, LSL, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe130, ROXL, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+    _I(0xe138, ROL, _AS(BWL_S6E7W0), _AO(DReg_S9E11W0), _AO(DReg_S0E2W0), _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table of instructions for opcode map 15
+M68KC_WORD _M68KDisOpcodeMap15[] =
+{
+    _MS(0xffff, 3, 0x0e00, 0x0000),
+    _I(0xf07a, PTRAPCC_51, _AC(V0000Mfff0_EW1), _AS(W_I), _AO(MMUCC_S0E3EW1), _AO(ImmW_NW), _ANONE, _ANONE),
+    _I(0xf07b, PTRAPCC_51, _AC(V0000Mfff0_EW1), _AS(L_I), _AO(MMUCC_S0E3EW1), _AO(ImmL_NW), _ANONE, _ANONE),
+    _I(0xf07c, PTRAPCC_51, _AC(V0000Mfff0_EW1), _AO(MMUCC_S0E3EW1), _ANONE, _ANONE, _ANONE, _ANONE),
+    
+    _MS(0xffff, 7, 0x0e00, 0x0200),
+    _I(0xf200, FPOP_REG, _AC(V0000Me000_EW1), _AFPOP(S0E7EW1), _AS(X_I), _AO(FPReg_S10E12EW1), _AO(FPReg_S7E9EW1), _ANONE),
+    _I(0xf200, FSINCOS, _AC(V0030Me078_EW1), _AS(X_I), _AO(FPReg_S10E12EW1), _AO(FPReg_S0E2EW1), _AO(FPReg_S7E9EW1), _ANONE),
+    _I(0xf200, FTST, _AC(V003aMe07f_EW1), _AS(X_I), _AO(FPReg_S10E12EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xf27a, FTRAPCC, _AC(V0000Mffc0_EW1), _AS(W_I), _AO(FPCC_S0E4EW1), _AO(ImmW_NW), _ANONE, _ANONE),
+    _I(0xf27b, FTRAPCC, _AC(V0000Mffc0_EW1), _AS(L_I), _AO(FPCC_S0E4EW1), _AO(ImmL_NW), _ANONE, _ANONE),
+    _I(0xf27c, FTRAPCC, _AC(V0000Mffc0_EW1), _AO(FPCC_S0E4EW1), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf280, FNOP, _AC(V0000Mffff_EW1), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    
+    _MS(0xffff, 2, 0x0e00, 0x0400),
+    _I(0xf510, PFLUSHAN_4060, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf518, PFLUSHN_4060, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffff, 1, 0x0e00, 0x0800),
+    _I(0xf800, LPSTOP, _AC(V01c0Mffff_EW1), _AS(W_I), _AO(ImmW_NW), _ANONE, _ANONE, _ANONE),
+
+    _MS(0xfff8, 1, 0x0e00, 0x0000),
+    _I(0xf048, PDBCC, _AC(V0000Mfff0_EW1), _AO(MMUCC_S0E3EW1), _AO(DReg_S0E2W0), _AO(DispW_NW), _ANONE, _ANONE),
+
+    _MS(0xfff8, 1, 0x0e00, 0x0200),
+    _I(0xf248, FDBCC, _AC(V0000Mffe0_EW1), _AO(FPCC_S0E4EW1), _AO(DReg_S0E2W0), _AO(DispW_NW), _ANONE, _ANONE),
+
+    _MS(0xfff8, 6, 0x0e00, 0x0400),
+    _I(0xf500, PFLUSHN_4060, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf508, PFLUSH_4060, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf548, PTESTW_4040EC, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf568, PTESTR_4040EC, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf580, PLPAW, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf5c0, PLPAR, _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _MS(0xfff8, 5, 0x0e00, 0x0600),
+    _I(0xf600, MOVE16, _AO(AModePI_S0E2W0), _AO(AbsL_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf608, MOVE16, _AO(AbsL_NW), _AO(AModePI_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf610, MOVE16, _AO(AModeIA_S0E2W0), _AO(AbsL_NW), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf618, MOVE16, _AO(AbsL_NW), _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf620, MOVE16_PD_PD, _AC(V8000M8fff_EW1), _AO(AModePI_S0E2W0), _AO(AModePI_S12E14W1), _ANONE, _ANONE, _ANONE),
+
+    _MS(0xfff8, 4, 0x0e00, 0x0800),
+    _I(0xf800, TBLU, _AC(V0000M8f38_EW1), _AS(BWL_S6E7EW1), _AO(DRegP_S0E2W0_S0E2EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLUN, _AC(V0400M8f38_EW1), _AS(BWL_S6E7EW1), _AO(DRegP_S0E2W0_S0E2EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLS, _AC(V0800M8f38_EW1), _AS(BWL_S6E7EW1), _AO(DRegP_S0E2W0_S0E2EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLSN, _AC(V0c00M8f38_EW1), _AS(BWL_S6E7EW1), _AO(DRegP_S0E2W0_S0E2EW1), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+
+    _MS(0xfff0, 2, 0x0e00, 0x0000),
+    _I(0xf080, PBCC, _AS(W_I), _AO(MMUCC_S0E3W0), _AO(DispW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0xf0c0, PBCC, _AS(L_I), _AO(MMUCC_S0E3W0), _AO(DispL_NW), _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffe0, 2, 0x0e00, 0x0200),
+    _I(0xf280, FBCC, _AS(W_I), _AO(FPCC_S0E4W0), _AO(DispW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0xf2c0, FBCC, _AS(L_I), _AO(FPCC_S0E4W0), _AO(DispL_NW), _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffc0, 51, 0x0e00, 0x0000),
+    _I(0xf000, PMOVE_30     , _AC(V0800Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTT0_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V0800Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegAC0_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVEFD_30   , _AC(V0900Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTT0_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V0a00Mffff_EW1), _AS(L_I), _AO(RegTT0_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V0a00Mffff_EW1), _AS(L_I), _AO(RegAC0_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V0c00Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTT1_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V0c00Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegAC1_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVEFD_30   , _AC(V0d00Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTT1_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V0e00Mffff_EW1), _AS(L_I), _AO(RegTT1_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V0e00Mffff_EW1), _AS(L_I), _AO(RegAC1_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PLOADW_3051  , _AC(V2000Mffe0_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PLOADR_3051  , _AC(V2200Mffe0_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PFLUSHA_3051 , _AC(V2400Mffff_EW1), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PVALID_51    , _AC(V2800Mffff_EW1), _AO(RegVAL_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PVALID_51    , _AC(V2c00Mfff8_EW1), _AO(AReg_S0E2EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PFLUSH_3051  , _AC(V3000Mfe00_EW1), _AO(FC_S0E4EW1), _AO(MMUMask_S5E8EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PFLUSHS_51   , _AC(V3400Mfe00_EW1), _AO(FC_S0E4EW1), _AO(MMUMask_S5E8EW1), _ANONE, _ANONE, _ANONE),
+    _I(0xf000, PFLUSH_3051  , _AC(V3800Mfe00_EW1), _AO(FC_S0E4EW1), _AO(MMUMask_S5E8EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PFLUSHS_51   , _AC(V3c00Mfe00_EW1), _AO(FC_S0E4EW1), _AO(MMUMask_S5E8EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V4000Me3ff_EW1), _AS(PReg_S10E12EW1), _AO(AMode_S0E5W0), _AO(PReg_S10E12EW1), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4000Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTC_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVEFD_30   , _AC(V4100Mffff_EW1), _AS(L_I), _AO(AModeCA_S0E5W0), _AO(RegTC_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V4200Me3ff_EW1), _AS(PReg_S10E12EW1), _AO(PReg_S10E12EW1), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4200Mffff_EW1), _AS(L_I), _AO(RegTC_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4800Mffff_EW1), _AS(Q_I), _AO(AModeCA_S0E5W0), _AO(RegSRP_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVEFD_30   , _AC(V4900Mffff_EW1), _AS(Q_I), _AO(AModeCA_S0E5W0), _AO(RegSRP_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4a00Mffff_EW1), _AS(Q_I), _AO(RegSRP_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4c00Mffff_EW1), _AS(Q_I), _AO(AModeCA_S0E5W0), _AO(RegCRP_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVEFD_30   , _AC(V4d00Mffff_EW1), _AS(Q_I), _AO(AModeCA_S0E5W0), _AO(RegCRP_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V4e00Mffff_EW1), _AS(Q_I), _AO(RegCRP_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V6000Mffff_EW1), _AS(W_I), _AO(AModeCA_S0E5W0), _AO(RegPSR_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V6000Mffff_EW1), _AS(W_I), _AO(AModeCA_S0E5W0), _AO(RegACUSR_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V6000Mffff_EW1), _AS(W_I), _AO(AMode_S0E5W0), _AO(RegPSR_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30     , _AC(V6200Mffff_EW1), _AS(W_I), _AO(RegPSR_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_30EC   , _AC(V6200Mffff_EW1), _AS(W_I), _AO(RegACUSR_I), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V6200Mffff_EW1), _AS(W_I), _AO(RegPSR_I), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V6400Mffff_EW1), _AS(W_I), _AO(AMode_S0E5W0), _AO(RegPCSR_I), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V6600Mffff_EW1), _AS(W_I), _AO(RegPCSR_I), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V7000Mffe3_EW1), _AS(W_I), _AO(AMode_S0E5W0), _AO(BADReg_S2E4EW1), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V7200Mffe3_EW1), _AS(W_I), _AO(BADReg_S2E4EW1), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V7400Mffe3_EW1), _AS(W_I), _AO(AMode_S0E5W0), _AO(BACReg_S2E4EW1), _ANONE, _ANONE),
+    _I(0xf000, PMOVE_51     , _AC(V7600Mffe3_EW1), _AS(W_I), _AO(BACReg_S2E4EW1), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf000, PTESTW_3051  , _AC(V8000Me3e0_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _AO(ImmB_S10E12EW1), _ANONE, _ANONE),
+    _I(0xf000, PTESTW_30EC  , _AC(V8000Mffe0_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _AO(ImmB0_I), _ANONE, _ANONE),
+    _I(0xf000, PTESTW_3051  , _AC(V8100Me300_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _AO(ImmB_S10E12EW1), _AO(AReg_S5E7EW1), _ANONE),
+    _I(0xf000, PTESTR_3051  , _AC(V8200Me3e0_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _AO(ImmB_S10E12EW1), _ANONE, _ANONE),
+    _I(0xf000, PTESTR_3051  , _AC(V8300Me300_EW1), _AO(FC_S0E4EW1), _AO(AModeCA_S0E5W0), _AO(ImmB_S10E12EW1), _AO(AReg_S5E7EW1), _ANONE),
+    _I(0xf000, PFLUSHR_51   , _AC(Va000Mffff_EW1), _AS(Q_I), _AO(AModePFR_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf040, PSCC         , _AC(V0000Mffc0_EW1), _AS(B_I), _AO(MMUCC_S0E3EW1), _AO(AModeDA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf100, PSAVE        , _AO(AModeCAPD_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf140, PRESTORE     , _AO(AModeCPI_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffc0, 24, 0x0e00, 0x0200),
+    _I(0xf200, FPOP             , _AC(V4000Me000_EW1), _AFPOP(S0E7EW1), _AS(FP_S10E12EW1), _AO(AModeD_S0E5W0), _AO(FPReg_S7E9EW1), _ANONE),
+    _I(0xf200, FSINCOS          , _AC(V4030Me078_EW1), _AS(FP_S10E12EW1), _AO(AModeD_S0E5W0), _AO(FPReg_S0E2EW1), _AO(FPReg_S7E9EW1), _ANONE),
+    _I(0xf200, FTST             , _AC(V403aMe07f_EW1), _AS(FP_S10E12EW1), _AO(AModeD_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf200, FMOVECR          , _AC(V5c00Mfc00_EW1), _AS(X_I), _AO(ImmB_S0E6EW1), _AO(FPReg_S7E9EW1), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_NKFACTOR   , _AC(V6000Me07f_EW1), _AS(P_I), _AO(FPReg_S7E9EW1), _AO(AModeD_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_SKFACTOR   , _AC(V6c00Mfc00_EW1), _AS(P_I), _AO(FPReg_S7E9EW1), _AO(AModeD_S0E5W0), _AO(SKFac_S0E6EW1), _ANONE),
+    _I(0xf200, FMOVE_DKFACTOR   , _AC(V7c00Mfc0f_EW1), _AS(P_I), _AO(FPReg_S7E9EW1), _AO(AModeD_S0E5W0), _AO(DKFac_S4E6EW1), _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(V8400Mffff_EW1), _AS(L_I), _AO(AMode_S0E5W0), _AO(RegFPIAR_I), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(V8800Mffff_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(RegFPSR_I), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(V9000Mffff_EW1), _AS(L_I), _AO(AModeD_S0E5W0), _AO(RegFPCR_I), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(Va400Mffff_EW1), _AS(L_I), _AO(RegFPIAR_I), _AO(AModeA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(Va800Mffff_EW1), _AS(L_I), _AO(RegFPSR_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVE_FPCR       , _AC(Vb000Mffff_EW1), _AS(L_I), _AO(RegFPCR_I), _AO(AModeDA_S0E5W0), _ANONE, _ANONE),
+    // note: FMOVEM must appear after FMOVE
+    _I(0xf200, FMOVEM           , _AC(V8000Me1ff_EW1), _AS(L_I), _AO(AModeCPDPI_S0E5W0), _AO(FPCRRegList_S10E12EW1), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Va000Me1ff_EW1), _AS(L_I), _AO(FPCRRegList_S10E12EW1), _AO(AModeCAPDPI_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Vd000Mff00_EW1), _AS(X_I), _AO(AModeCPI_S0E5W0), _AO(FPRegIList_S0E7EW1), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Vd800Mff8f_EW1), _AS(X_I), _AO(AModeCPI_S0E5W0), _AO(DReg_S4E6EW1), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Ve000Mff00_EW1), _AS(X_I), _AO(FPRegList_S0E7EW1), _AO(AModePD_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Ve800Mff8f_EW1), _AS(X_I), _AO(DReg_S4E6EW1), _AO(AModePD_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Vf000Mff00_EW1), _AS(X_I), _AO(FPRegIList_S0E7EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf200, FMOVEM           , _AC(Vf800Mff8f_EW1), _AS(X_I), _AO(DReg_S4E6EW1), _AO(AModeCA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf240, FSCC             , _AC(V0000Mffe0_EW1), _AS(B_I), _AO(FPCC_S0E4EW1), _AO(AModeDA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf300, FSAVE            , _AO(AModeCAPD_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf340, FRESTORE         , _AO(AModeCPI_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffc0, 1, 0x0e00, 0x0600),
+    _I(0xf600, TOUCH, _AO(AModeTOUCH_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _MS(0xffc0, 4, 0x0e00, 0x0800),
+    _I(0xf800, TBLU             , _AC(V0100M8f38_EW1), _AS(BWL_S6E7EW1), _AO(AModeCA_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLUN            , _AC(V0500M8f38_EW1), _AS(BWL_S6E7EW1), _AO(AModeCA_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLS             , _AC(V0900M8f38_EW1), _AS(BWL_S6E7EW1), _AO(AModeCA_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+    _I(0xf800, TBLSN            , _AC(V0d00M8f38_EW1), _AS(BWL_S6E7EW1), _AO(AModeCA_S0E5W0), _AO(DReg_S12E14EW1), _ANONE, _ANONE),
+
+    _MS(0xff38, 6, 0x0e00, 0x0400),
+    _I(0xf408, CINVL, _AO(CT_S6E7W0), _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf410, CINVP, _AO(CT_S6E7W0), _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf418, CINVA, _AO(CT_S6E7W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf428, CPUSHL, _AO(CT_S6E7W0), _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf430, CPUSHP, _AO(CT_S6E7W0), _AO(AModeIA_S0E2W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf438, CPUSHA, _AO(CT_S6E7W0), _ANONE, _ANONE, _ANONE, _ANONE, _ANONE),
+
+    // apollo core 68080
+    _MS(0xfe3f, 1, 0x0e00, 0x0e00),
+    _I(0xfe3f, VPERM, _AC(V0000M00f0_EW1), _AS(Q_I), _AO(ImmL_NW), _AO(AC80VReg_S0E3EW1_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0)),
+        
+    _MS(0xfeb0, 4, 0x0e00, 0x0e00),
+    _I(0xfe00, TRANSHI, _AC(V0002Mf0ff_EW1), _AS(Q_I), _AO(AC80VRegPM4_S0E3W0_S8E8W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, TRANSLO, _AC(V0003Mf0ff_EW1), _AS(Q_I), _AO(AC80VRegPM4_S0E3W0_S8E8W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, TRANSILO, _AC(V1003Mf0ff_EW1), _AS(Q_I), _AO(AC80VRegPM4_S0E3W0_S8E8W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, MINTERM, _AC(V002aMf0ff_EW1), _AS(Q_I), _AO(AC80VRegPM4_S0E3W0_S8E8W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    
+    _MS(0xfe40, 3, 0x0e00, 0x0e00),
+    _I(0xfe00, STORE, _AC(V0004M0fff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE, _ANONE),
+    _I(0xfe00, STOREI, _AC(V0104M0fff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE, _ANONE),
+    _I(0xfe00, STOREM3, _AC(V0026M0cff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(ImmB_S8E9EW1), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+
+    _MS(0xfe80, 4, 0x0e00, 0x0e00),
+    _I(0xfe00, LOAD, _AC(V0001Mf0ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, LOADI, _AC(V1001Mf0ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, UNPACK1632, _AC(V001eMf0ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+    _I(0xfe00, C2P, _AC(V0028Mf0ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE, _ANONE),
+
+    _MS(0xfe00, 45, 0x0e00, 0x0e00),
+    _I(0xfe00, STOREM, _AC(V0005M00ff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+    _I(0xfe00, PACKUSWB, _AC(V0006M00ff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+    _I(0xfe00, PACK3216, _AC(V0007M00ff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+    _I(0xfe00, PAND, _AC(V0008M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, POR, _AC(V0009M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PEOR, _AC(V000aM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PANDN, _AC(V000bM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PAVG, _AC(V000cM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PABSB, _AC(V000eM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PABSW, _AC(V000fM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PADDB, _AC(V0010M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PADDW, _AC(V0011M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PSUBB, _AC(V0012M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PSUBW, _AC(V0013M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PADDUSB, _AC(V0014M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PADDUSW, _AC(V0015M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PSUBUSB, _AC(V0016M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PSUBUSW, _AC(V0017M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMUL88, _AC(V0018M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMULA, _AC(V0019M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMULH, _AC(V001aM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMULL, _AC(V001bM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, BFLYB, _AC(V001cM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, BFLYW, _AC(V001dM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VRegPM2_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPEQB, _AC(V0020M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPEQW, _AC(V0021M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPHIB, _AC(V0022M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPHIW, _AC(V0023M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, STOREC, _AC(V0024M00ff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+    _I(0xfe00, STOREILM, _AC(V0025M00ff_EW1), _AS(Q_I), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _AO(AC80VAModeA_S0E5W0_S8E8W0), _ANONE),
+    _I(0xfe00, BSEL, _AC(V0029M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPGEB, _AC(V002cM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPGEW, _AC(V002dM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPGTB, _AC(V002eM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PCMPGTW, _AC(V002fM00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMINSB, _AC(V0030M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMINSW, _AC(V0031M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMINUB, _AC(V0032M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMINUW, _AC(V0033M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMAXSB, _AC(V0034M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMAXSW, _AC(V0035M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMAXUB, _AC(V0036M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, PMAXUW, _AC(V0037M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, LSLQ, _AC(V0038M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    _I(0xfe00, LSRQ, _AC(V0039M00ff_EW1), _AS(Q_I), _AO(AC80VAMode_S0E5W0_S8E8W0), _AO(AC80VReg_S12E15EW1_S7E7W0), _AO(AC80VReg_S8E11EW1_S6E6W0), _ANONE),
+    
+    // cpXcc instructions must appear at the end because they are generic
+    _M(0xf1ff, 3),
+    _I(0xf07a, CPTRAPCC, _AC(V0000Mffc0_EW1), _AS(W_I), _AO(CPIDCC_S9E11W0_S0E5EW1), _AO(ImmW_NW), _ANONE, _ANONE),
+    _I(0xf07b, CPTRAPCC, _AC(V0000Mffc0_EW1), _AS(L_I), _AO(CPIDCC_S9E11W0_S0E5EW1), _AO(ImmL_NW), _ANONE, _ANONE),
+    _I(0xf07c, CPTRAPCC, _AC(V0000Mffc0_EW1), _AS(L_I), _AO(CPIDCC_S9E11W0_S0E5EW1), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1f8, 1),
+    _I(0xf048, CPDBCC, _AC(V0000Mffc0_EW1), _AS(W_I), _AO(CPIDCC_S9E11W0_S0E5EW1), _AO(DReg_S0E2W0), _AO(DispW_NW), _ANONE),
+
+    _M(0xf9c0, 2),
+    _I(0xf080, CPBCC, _AS(W_I), _AO(CPIDCC_S9E11W0_S0E5W0), _AO(DispW_NW), _ANONE, _ANONE, _ANONE),
+    _I(0xf0c0, CPBCC, _AS(L_I), _AO(CPIDCC_S9E11W0_S0E5W0), _AO(DispL_NW), _ANONE, _ANONE, _ANONE),
+
+    _M(0xf1c0, 4),
+    _I(0xf000, CPGEN, _AO(CPID_S9E11W0), _AO(ImmW_NW), _AO(AModeDA_S0E5W0), _ANONE, _ANONE, _ANONE),
+    _I(0xf040, CPSCC, _AC(V0000Mffc0_EW1), _AS(B_I), _AO(CPIDCC_S9E11W0_S0E5EW1), _AO(AModeDA_S0E5W0), _ANONE, _ANONE),
+    _I(0xf100, CPSAVE, _AO(CPID_S9E11W0), _AO(AModeCAPD_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+    _I(0xf140, CPRESTORE, _AO(CPID_S9E11W0), _AO(AModeCPI_S0E5W0), _ANONE, _ANONE, _ANONE, _ANONE),
+
+    _STOP
+};
+
+// table with all opcode maps
+PM68KC_WORD M68K_CONST _M68KDisOpcodeMaps[16] = 
+{
+    _M68KDisOpcodeMap0,
+    _M68KDisOpcodeMap1,
+    _M68KDisOpcodeMap2,
+    _M68KDisOpcodeMap3,
+    _M68KDisOpcodeMap4,
+    _M68KDisOpcodeMap5,
+    _M68KDisOpcodeMap6,
+    _M68KDisOpcodeMap7,
+    _M68KDisOpcodeMap8,
+    _M68KDisOpcodeMap9,
+    _M68KDisOpcodeMap10,
+    _M68KDisOpcodeMap11,
+    _M68KDisOpcodeMap12,
+    _M68KDisOpcodeMap13,
+    _M68KDisOpcodeMap14,
+    _M68KDisOpcodeMap15,
+};
+
+// table with values and masks
+C_VALUE_MASK _M68KDisValueMasks[DAT_C__VMEND__ - DAT_C__VMSTART__] =
+{
+    // values and masks for extension word 1
+    {0x0000, 0x00f0}, // DAT_C_V0000M00f0_EW1
+    {0x0000, 0x0e38}, // DAT_C_V0000M0e38_EW1
+    {0x0000, 0x8000}, // DAT_C_V0000M8000_EW1
+    {0x0000, 0x8e7f}, // DAT_C_V0000M8e7f_EW1
+    {0x0000, 0x8f38}, // DAT_C_V0000M8f38_EW1
+    {0x0000, 0x8ff8}, // DAT_C_V0000M8ff8_EW1
+    {0x0000, 0x8fff}, // DAT_C_V0000M8fff_EW1
+    {0x0000, 0xe000}, // DAT_C_V0000Me000_EW1
+    {0x0000, 0xf000}, // DAT_C_V0000Mf000_EW1
+    {0x0000, 0xfe1c}, // DAT_C_V0000Mfe1c_EW1
+    {0x0000, 0xff00}, // DAT_C_V0000Mff00_EW1
+    {0x0000, 0xffc0}, // DAT_C_V0000Mffc0_EW1
+    {0x0000, 0xffe0}, // DAT_C_V0000Mffe0_EW1
+    {0x0000, 0xfff0}, // DAT_C_V0000Mfff0_EW1
+    {0x0000, 0xffff}, // DAT_C_V0000Mffff_EW1
+    {0x0001, 0xf0ff}, // DAT_C_V0001Mf0ff_EW1
+    {0x0002, 0xf0ff}, // DAT_C_V0002Mf0ff_EW1
+    {0x0003, 0xf0ff}, // DAT_C_V0003Mf0ff_EW1
+    {0x0004, 0x0fff}, // DAT_C_V0004M0fff_EW1
+    {0x0005, 0x00ff}, // DAT_C_V0005M00ff_EW1
+    {0x0006, 0x00ff}, // DAT_C_V0006M00ff_EW1
+    {0x0007, 0x00ff}, // DAT_C_V0007M00ff_EW1
+    {0x0008, 0x00ff}, // DAT_C_V0008M00ff_EW1
+    {0x0009, 0x00ff}, // DAT_C_V0009M00ff_EW1
+    {0x000a, 0x00ff}, // DAT_C_V000aM00ff_EW1
+    {0x000b, 0x00ff}, // DAT_C_V000bM00ff_EW1
+    {0x000c, 0x00ff}, // DAT_C_V000cM00ff_EW1
+    {0x000e, 0x00ff}, // DAT_C_V000eM00ff_EW1
+    {0x000f, 0x00ff}, // DAT_C_V000fM00ff_EW1
+    {0x0010, 0x00ff}, // DAT_C_V0010M00ff_EW1
+    {0x0010, 0x8e7f}, // DAT_C_V0010M8e7f_EW1
+    {0x0011, 0x00ff}, // DAT_C_V0011M00ff_EW1
+    {0x0012, 0x00ff}, // DAT_C_V0012M00ff_EW1
+    {0x0013, 0x00ff}, // DAT_C_V0013M00ff_EW1
+    {0x0014, 0x00ff}, // DAT_C_V0014M00ff_EW1
+    {0x0015, 0x00ff}, // DAT_C_V0015M00ff_EW1
+    {0x0016, 0x00ff}, // DAT_C_V0016M00ff_EW1
+    {0x0017, 0x00ff}, // DAT_C_V0017M00ff_EW1
+    {0x0018, 0x00ff}, // DAT_C_V0018M00ff_EW1
+    {0x0019, 0x00ff}, // DAT_C_V0019M00ff_EW1
+    {0x001a, 0x00ff}, // DAT_C_V001aM00ff_EW1
+    {0x001b, 0x00ff}, // DAT_C_V001bM00ff_EW1
+    {0x001c, 0x00ff}, // DAT_C_V001cM00ff_EW1
+    {0x001d, 0x00ff}, // DAT_C_V001dM00ff_EW1
+    {0x001e, 0xf0ff}, // DAT_C_V001eMf0ff_EW1
+    {0x0020, 0x00ff}, // DAT_C_V0020M00ff_EW1
+    {0x0021, 0x00ff}, // DAT_C_V0021M00ff_EW1
+    {0x0022, 0x00ff}, // DAT_C_V0022M00ff_EW1
+    {0x0023, 0x00ff}, // DAT_C_V0023M00ff_EW1
+    {0x0024, 0x00ff}, // DAT_C_V0024M00ff_EW1
+    {0x0025, 0x00ff}, // DAT_C_V0025M00ff_EW1
+    {0x0026, 0x0cff}, // DAT_C_V0026M0cff_EW1
+    {0x0028, 0xf0ff}, // DAT_C_V0028Mf0ff_EW1
+    {0x0029, 0x00ff}, // DAT_C_V0029M00ff_EW1
+    {0x002a, 0xf0ff}, // DAT_C_V002aMf0ff_EW1
+    {0x002c, 0x00ff}, // DAT_C_V002cM00ff_EW1
+    {0x002d, 0x00ff}, // DAT_C_V002dM00ff_EW1
+    {0x002e, 0x00ff}, // DAT_C_V002eM00ff_EW1
+    {0x002f, 0x00ff}, // DAT_C_V002fM00ff_EW1
+    {0x0030, 0xe078}, // DAT_C_V0030Me078_EW1
+    {0x0030, 0x00ff}, // DAT_C_V0030M00ff_EW1
+    {0x0031, 0x00ff}, // DAT_C_V0031M00ff_EW1
+    {0x0032, 0x00ff}, // DAT_C_V0032M00ff_EW1
+    {0x0033, 0x00ff}, // DAT_C_V0033M00ff_EW1
+    {0x0034, 0x00ff}, // DAT_C_V0034M00ff_EW1
+    {0x0035, 0x00ff}, // DAT_C_V0035M00ff_EW1
+    {0x0036, 0x00ff}, // DAT_C_V0036M00ff_EW1
+    {0x0037, 0x00ff}, // DAT_C_V0037M00ff_EW1
+    {0x0038, 0x00ff}, // DAT_C_V0038M00ff_EW1
+    {0x0039, 0x00ff}, // DAT_C_V0039M00ff_EW1
+    {0x003a, 0xe07f}, // DAT_C_V003aMe07f_EW1
+    {0x0100, 0x8f38}, // DAT_C_V0100M8f38_EW1
+    {0x0104, 0x0fff}, // DAT_C_V0104M0fff_EW1
+    {0x01c0, 0xffff}, // DAT_C_V01c0Mffff_EW1
+    {0x0400, 0x8f38}, // DAT_C_V0400M8f38_EW1
+    {0x0400, 0x8ff8}, // DAT_C_V0400M8ff8_EW1
+    {0x0500, 0x8f38}, // DAT_C_V0500M8f38_EW1
+    {0x0800, 0x8e7f}, // DAT_C_V0800M8e7f_EW1
+    {0x0800, 0x8f38}, // DAT_C_V0800M8f38_EW1
+    {0x0800, 0x8ff8}, // DAT_C_V0800M8ff8_EW1
+    {0x0800, 0x8fff}, // DAT_C_V0800M8fff_EW1
+    {0x0800, 0xffff}, // DAT_C_V0800Mffff_EW1
+    {0x0810, 0x8e7f}, // DAT_C_V0810M8e7f_EW1
+    {0x0900, 0x8f38}, // DAT_C_V0900M8f38_EW1
+    {0x0900, 0xffff}, // DAT_C_V0900Mffff_EW1
+    {0x0a00, 0xffff}, // DAT_C_V0a00Mffff_EW1
+    {0x0c00, 0x8f38}, // DAT_C_V0c00M8f38_EW1
+    {0x0c00, 0x8ff8}, // DAT_C_V0c00M8ff8_EW1
+    {0x0c00, 0xffff}, // DAT_C_V0c00Mffff_EW1
+    {0x0d00, 0x8f38}, // DAT_C_V0d00M8f38_EW1
+    {0x0d00, 0xffff}, // DAT_C_V0d00Mffff_EW1
+    {0x0e00, 0xffff}, // DAT_C_V0e00Mffff_EW1
+    {0x1001, 0xf0ff}, // DAT_C_V1001Mf0ff_EW1
+    {0x1003, 0xf0ff}, // DAT_C_V1003Mf0ff_EW1
+    {0x2000, 0xffe0}, // DAT_C_V2000Mffe0_EW1
+    {0x2200, 0xffe0}, // DAT_C_V2200Mffe0_EW1
+    {0x2400, 0xffff}, // DAT_C_V2400Mffff_EW1
+    {0x2800, 0xffff}, // DAT_C_V2800Mffff_EW1
+    {0x2c00, 0xfff8}, // DAT_C_V2c00Mfff8_EW1
+    {0x3000, 0xfe00}, // DAT_C_V3000Mfe00_EW1
+    {0x3400, 0xfe00}, // DAT_C_V3400Mfe00_EW1
+    {0x3800, 0xfe00}, // DAT_C_V3800Mfe09_EW1
+    {0x3c00, 0xfe00}, // DAT_C_V3c00Mfe00_EW1
+    {0x4000, 0xe000}, // DAT_C_V4000Me000_EW1
+    {0x4000, 0xe3ff}, // DAT_C_V4000Me3ff_EW1
+    {0x4000, 0xffff}, // DAT_C_V4000Mffff_EW1
+    {0x4030, 0xe078}, // DAT_C_V4030Me078_EW1
+    {0x403a, 0xe07f}, // DAT_C_V403aMe07f_EW1
+    {0x4100, 0xffff}, // DAT_C_V4100Mffff_EW1
+    {0x4200, 0xe3ff}, // DAT_C_V4200Me3ff_EW1
+    {0x4200, 0xffff}, // DAT_C_V4200Mffff_EW1
+    {0x4800, 0xffff}, // DAT_C_V4800Mffff_EW1
+    {0x4900, 0xffff}, // DAT_C_V4900Mffff_EW1
+    {0x4a00, 0xffff}, // DAT_C_V4a00Mffff_EW1
+    {0x4c00, 0xffff}, // DAT_C_V4c00Mffff_EW1
+    {0x4d00, 0xffff}, // DAT_C_V4d00Mffff_EW1
+    {0x4e00, 0xffff}, // DAT_C_V4e00Mffff_EW1
+    {0x5c00, 0xfc00}, // DAT_C_V5c00Mfc00_EW1
+    {0x6000, 0xe07f}, // DAT_C_V6000Me07f_EW1
+    {0x6000, 0xffff}, // DAT_C_V6000Mffff_EW1
+    {0x6200, 0xffff}, // DAT_C_V6200Mffff_EW1
+    {0x6400, 0xffff}, // DAT_C_V6400Mffff_EW1
+    {0x6600, 0xffff}, // DAT_C_V6600Mffff_EW1
+    {0x6c00, 0xfc00}, // DAT_C_V6c00Mfc00_EW1
+    {0x7000, 0xffe3}, // DAT_C_V7000Mffe3_EW1
+    {0x7200, 0xffe3}, // DAT_C_V7200Mffe3_EW1
+    {0x7400, 0xffe3}, // DAT_C_V7400Mffe3_EW1
+    {0x7600, 0xffe3}, // DAT_C_V7600Mffe3_EW1
+    {0x7c00, 0xfc0f}, // DAT_C_V7c00Mfc0f_EW1
+    {0x8000, 0x8000}, // DAT_C_V8000M8000_EW1
+    {0x8000, 0x8e7f}, // DAT_C_V8000M8e7f_EW1
+    {0x8000, 0x8fff}, // DAT_C_V8000M8fff_EW1
+    {0x8000, 0xe1ff}, // DAT_C_V8000Me1ff_EW1
+    {0x8000, 0xe3e0}, // DAT_C_V8000Me3e0_EW1
+    {0x8000, 0xffe0}, // DAT_C_V8000Mffe0_EW1
+    {0x8010, 0x8e7f}, // DAT_C_V8010M8e7f_EW1
+    {0x8100, 0xe300}, // DAT_C_V8100Me300_EW1
+    {0x8200, 0xe3e0}, // DAT_C_V8200Me3e0_EW1
+    {0x8300, 0xe300}, // DAT_C_V8300Me300_EW1
+    {0x8400, 0xffff}, // DAT_C_V8400Mffff_EW1
+    {0x8800, 0x8e7f}, // DAT_C_V8800M8e7f_EW1
+    {0x8800, 0x8fff}, // DAT_C_V8800M8fff_EW1
+    {0x8800, 0xffff}, // DAT_C_V8800Mffff_EW1
+    {0x8810, 0x8e7f}, // DAT_C_V8810M8e7f_EW1
+    {0x9000, 0xffff}, // DAT_C_V9000Mffff_EW1
+    {0xa000, 0xe1ff}, // DAT_C_Va000Me1ff_EW1
+    {0xa000, 0xffff}, // DAT_C_Va000Mffff_EW1
+    {0xa400, 0xffff}, // DAT_C_Va400Mffff_EW1
+    {0xa800, 0xffff}, // DAT_C_Va800Mffff_EW1
+    {0xb000, 0xffff}, // DAT_C_Vb000Mffff_EW1
+    {0xd000, 0xff00}, // DAT_C_Vd000Mff00_EW1
+    {0xd800, 0xff8f}, // DAT_C_Vd800Mff8f_EW1
+    {0xe000, 0xff00}, // DAT_C_Ve000Mff00_EW1
+    {0xe800, 0xff8f}, // DAT_C_Ve800Mff8f_EW1
+    {0xf000, 0xff00}, // DAT_C_Vf000Mff00_EW1
+    {0xf800, 0xff8f}, // DAT_C_Vf800Mff8f_EW1
+    // values and masks for extension word 2
+    {0x0000, 0x0e38}, // DAT_C_V0000M0e38_EW2
+};

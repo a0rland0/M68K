@@ -1,0 +1,95 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Header Files\m68k">
+      <UniqueIdentifier>{d9602b7b-ce3a-498a-a04a-b5e9d75f4d54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\m68k">
+      <UniqueIdentifier>{47605ab6-8c3f-43e9-a919-f905552ac3d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\m68k\gen">
+      <UniqueIdentifier>{3ecdc95a-d19c-42b5-8f6c-47f9f3f1308a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\m68k\m68k.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kasm.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kasm_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kasm_text.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kcc_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kctl_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kdis.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kdis_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kdis_text.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kfpu_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kieee_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kinstr_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kinternal.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68kmmu_tables.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m68k\m68ktexts.c">
+      <Filter>Source Files\m68k</Filter>
+    </ClCompile>
+    <ClCompile Include="src\main.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\m68k\m68k.h">
+      <Filter>Header Files\m68k</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m68k\m68kinternal.h">
+      <Filter>Header Files\m68k</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m68k\m68kinternal_amodes.h">
+      <Filter>Header Files\m68k</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m68k\gen\index_first_words.h">
+      <Filter>Header Files\m68k\gen</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m68k\gen\opcode_maps.h">
+      <Filter>Header Files\m68k\gen</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m68k\gen\words.h">
+      <Filter>Header Files\m68k\gen</Filter>
+    </ClInclude>
+    <ClInclude Include="src\main.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
