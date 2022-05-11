@@ -390,7 +390,7 @@ mem_indirect_disp_w:
                 AltOperand.Info.Memory.Base = Operand->Info.Memory.Base;
                 AltOperand.Info.Memory.Index.Register = M68K_RT_NONE;
                 AltOperand.Info.Memory.Displacement.BaseSize = M68K_SIZE_W;
-                AltOperand.Info.Memory.Displacement.BaseValue = 0;
+                AltOperand.Info.Memory.Displacement.BaseValue = Operand->Info.Memory.Displacement.BaseValue;
                 AltOperand.Info.Memory.Displacement.OuterSize = M68K_SIZE_NONE;
                 Operand = &AltOperand;
                 goto check_mem_indirect_index_disp_l;
