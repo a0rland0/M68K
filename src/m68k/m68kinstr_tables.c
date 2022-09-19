@@ -475,7 +475,7 @@ C_INSTRUCTION_MASTER_FLAGS_VALUE _M68KInstrMasterTypeFlags[M68K_IT__SIZEOF__] =
 };
 
 // fpu opmode for each master type
-M68K_BYTE _M68KInstrMasterTypeFPUOpmodes[M68K_IT__SIZEOF__] =
+M68KC_BYTE _M68KInstrMasterTypeFPUOpmodes[M68K_IT__SIZEOF__] =
 {
     128,    // M68K_IT_INVALID
     128,    // M68K_IT_ABCD

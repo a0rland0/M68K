@@ -1,7 +1,7 @@
 #include "m68kinternal.h"
 
 // dword values for each double ieee value
-IEEE_VALUE_DOUBLE _M68KIEEEDoubleValues[M68K_IEEE_VT__SIZEOF__] =
+M68K_CONST IEEE_VALUE_DOUBLE _M68KIEEEDoubleValues[M68K_IEEE_VT__SIZEOF__] =
 {
     {0x00000000UL, 0x00000000UL}, // M68K_IEEE_VT_IND (not supported)
     {0x7ff00000UL, 0x00000000UL}, // M68K_IEEE_VT_INF
@@ -13,7 +13,7 @@ IEEE_VALUE_DOUBLE _M68KIEEEDoubleValues[M68K_IEEE_VT__SIZEOF__] =
 };
 
 // dword values for each extended ieee value
-IEEE_VALUE_EXTENDED _M68KIEEEExtendedValues[M68K_IEEE_VT__SIZEOF__] =
+M68K_CONST IEEE_VALUE_EXTENDED _M68KIEEEExtendedValues[M68K_IEEE_VT__SIZEOF__] =
 {
     {0x7fff0000UL, 0xc0000000UL, 0x00000000UL}, // M68K_IEEE_VT_IND
     {0x7fff0000UL, 0x80000000UL, 0x00000000UL}, // M68K_IEEE_VT_INF
@@ -25,7 +25,7 @@ IEEE_VALUE_EXTENDED _M68KIEEEExtendedValues[M68K_IEEE_VT__SIZEOF__] =
 };
 
 // dword values for each single ieee value
-IEEE_VALUE_SINGLE _M68KIEEESingleValues[M68K_IEEE_VT__SIZEOF__] =
+M68K_CONST IEEE_VALUE_SINGLE _M68KIEEESingleValues[M68K_IEEE_VT__SIZEOF__] =
 {
     {0x00000000UL}, // M68K_IEEE_VT_IND (not supported)
     {0x7f800000UL}, // M68K_IEEE_VT_INF

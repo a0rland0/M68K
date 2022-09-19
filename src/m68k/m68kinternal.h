@@ -1029,14 +1029,14 @@ extern M68KC_SIZE_VALUE _M68KFpuSizes[8];
 extern M68KC_BYTE       _M68KFpuSizeCodes[M68K_SIZE__SIZEOF__];
 
 // m68kieee_tables.c
-extern IEEE_VALUE_DOUBLE    _M68KIEEEDoubleValues[M68K_IEEE_VT__SIZEOF__];
-extern IEEE_VALUE_EXTENDED  _M68KIEEEExtendedValues[M68K_IEEE_VT__SIZEOF__];
-extern IEEE_VALUE_SINGLE    _M68KIEEESingleValues[M68K_IEEE_VT__SIZEOF__];
+extern M68K_CONST IEEE_VALUE_DOUBLE    _M68KIEEEDoubleValues[M68K_IEEE_VT__SIZEOF__];
+extern M68K_CONST IEEE_VALUE_EXTENDED  _M68KIEEEExtendedValues[M68K_IEEE_VT__SIZEOF__];
+extern M68K_CONST IEEE_VALUE_SINGLE    _M68KIEEESingleValues[M68K_IEEE_VT__SIZEOF__];
 
 // m68kinstr_tables.c
 extern C_INSTRUCTION_FPU_OPMODE_INFO    _M68KInstrFPUOpmodes[128];
 extern C_INSTRUCTION_MASTER_FLAGS_VALUE _M68KInstrMasterTypeFlags[M68K_IT__SIZEOF__];
-extern M68K_BYTE                        _M68KInstrMasterTypeFPUOpmodes[M68K_IT__SIZEOF__];
+extern M68KC_BYTE                       _M68KInstrMasterTypeFPUOpmodes[M68K_IT__SIZEOF__];
 extern C_INSTRUCTION_TYPE_INFO          _M68KInstrTypeInfos[IT__SIZEOF__];
 
 // m68kmmu_tables.c
