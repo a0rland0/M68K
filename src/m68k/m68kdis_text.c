@@ -4,7 +4,7 @@ typedef M68K_BOOL (*PADD_OPERAND_FUNC)(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND
 
 // forward declarations
 static void         AddChar(PDISASM_TEXT_CONTEXT DTCtx, M68K_CHAR Char, TEXT_CASE TextCase);
-static M68K_BOOL    AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Size, M68K_SDWORD Value, M68K_BOOL Forced, M68K_BOOL AsmText, M68K_CHAR AsmSep, TEXT_CASE TextCase);
+static M68K_BOOL    AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Size, M68K_SDWORD Value, M68K_BOOL Forced, M68K_CHAR Separator, M68K_BOOL AsmText, TEXT_CASE TextCase);
 static M68K_BOOL    AddIndexScale(PDISASM_TEXT_CONTEXT DTCtx, PM68K_MEMORY Memory, M68K_CHAR Separator, M68K_BOOL AsmText, TEXT_CASE TextCase);
 static M68K_BOOL    AddMask(PDISASM_TEXT_CONTEXT DTCtx, M68K_WORD Mask, M68K_REGISTER_TYPE StartRegister, TEXT_CASE TextCase, M68K_CHAR RegSeparator, M68K_CHAR RangeSeparator);
 static M68K_BOOL    AddOperand(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand, TEXT_CASE TextCase, PM68K_BOOL Ignored);
@@ -65,7 +65,7 @@ static void AddChar(PDISASM_TEXT_CONTEXT DTCtx, M68K_CHAR Char, TEXT_CASE TextCa
 }
 
 // add the displacement text to the output buffer
-static M68K_BOOL AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Size, M68K_SDWORD Value, M68K_BOOL Forced, M68K_BOOL AsmText, M68K_CHAR AsmSep, TEXT_CASE TextCase)
+static M68K_BOOL AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Size, M68K_SDWORD Value, M68K_BOOL Forced, M68K_CHAR Separator, M68K_BOOL AsmText, TEXT_CASE TextCase)
 {
     // no displacement?
     if (Size == M68K_SIZE_NONE || (Value == 0 && !Forced))
@@ -77,15 +77,15 @@ static M68K_BOOL AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Siz
         M68K_BOOL AsDisplacement = M68K_FALSE;
         M68K_CHAR LocalBuffer[17];
 
-        if (AsmSep != 0)
+        if (Separator != 0)
         {
-            if (AsmSep == '+')
+            if (Separator == '+')
             {
                 AsDisplacement = M68K_TRUE;
                 TextFlags &= ~M68K_DTFLG_IGNORE_SIGN;
             }
             else
-                AddChar(DTCtx, AsmSep, TextCase);
+                AddChar(DTCtx, Separator, TextCase);
         }
 
         if (Size == M68K_SIZE_B)
@@ -102,6 +102,12 @@ static M68K_BOOL AddDisplacement(PDISASM_TEXT_CONTEXT DTCtx, M68K_SIZE_VALUE Siz
     }
     else
     {
+        if (Separator != 0)
+        {
+            if (!CallFunctionNoDetails(DTCtx, M68K_DTIF_TEXT_MEMORY_ADD, TextCase))
+                return M68K_FALSE;
+        }
+
         if (Size == M68K_SIZE_B)
         {
             DTCtx->TextInfo.Type = M68K_DTIF_DISPLACEMENT_B;
@@ -482,6 +488,7 @@ memory:
             if (!CallFunctionNoDetails(DTCtx, M68K_DTIF_TEXT_INNER_MEMORY_START, TextCase))
                 break;
 
+        M68K_BOOL AddSeparator = M68K_FALSE;
         M68K_BOOL IgnoreBaseDisplacement = M68K_FALSE;
         M68K_SIZE_VALUE BaseDisplacementSize = Operand->Info.Memory.Displacement.BaseSize;
         M68K_SDWORD BaseDisplacementValue = Operand->Info.Memory.Displacement.BaseValue;
@@ -547,6 +554,8 @@ memory:
             }
             else if (!AddRegister(DTCtx, Operand->Info.Memory.Base, TextCase))
                 break;
+
+            AddSeparator = M68K_TRUE;
         }
 
         // the base displacement is forced
@@ -570,7 +579,7 @@ memory:
         if (PostIndexed)
         {
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_FALSE, 0, TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? ',' : 0), M68K_FALSE, TextCase))
                     break;
 
             if (!CallFunctionNoDetails(DTCtx, M68K_DTIF_TEXT_INNER_MEMORY_END, TextCase))
@@ -579,17 +588,23 @@ memory:
             if (!AddIndexScale(DTCtx, &(Operand->Info.Memory), ',', M68K_FALSE, TextCase))
                 break;
 
-            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_FALSE, 0, TextCase))
+            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, ',', M68K_FALSE, TextCase))
                 break;
         }
         // no! pre-indexed or indirect
         else
         {
-            if (!AddIndexScale(DTCtx, &(Operand->Info.Memory), (Operand->Info.Memory.Base != M68K_RT_NONE ? ',' : 0), M68K_FALSE, TextCase))
+            // index and scale are present?
+            if (Operand->Info.Memory.Index.Register != M68K_RT_NONE)
+            {
+                if (!AddIndexScale(DTCtx, &(Operand->Info.Memory), (AddSeparator ? ',' : 0), M68K_FALSE, TextCase))
                 break;
 
+                AddSeparator = M68K_TRUE;
+            }
+
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_FALSE, 0, TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? ',' : 0), M68K_FALSE, TextCase))
                     break;
 
             if (PreIndexed)
@@ -597,7 +612,7 @@ memory:
                 if (!CallFunctionNoDetails(DTCtx, M68K_DTIF_TEXT_INNER_MEMORY_END, TextCase))
                     break;
 
-                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_FALSE, 0, TextCase))
+                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, ',', M68K_FALSE, TextCase))
                     break;
             }
         }
@@ -1111,7 +1126,7 @@ memory:
         if (PostIndexed)
         {
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_TRUE, (AddSeparator ? ',' : 0), TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? ',' : 0), M68K_TRUE, TextCase))
                     break;
 
             AddChar(DTCtx, ']', TC_NONE);
@@ -1119,7 +1134,7 @@ memory:
             if (!AddIndexScale(DTCtx, &(Operand->Info.Memory), ',', M68K_TRUE, TextCase))
                 break;
 
-            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_TRUE, ',', TextCase))
+            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, ',', M68K_TRUE, TextCase))
                 break;
         }
         // no! pre-indexed or indirect
@@ -1135,14 +1150,14 @@ memory:
             }
 
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_TRUE, (AddSeparator ? ',' : 0), TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? ',' : 0), M68K_TRUE, TextCase))
                     break;
 
             if (PreIndexed)
             {
                 AddChar(DTCtx, ']', TC_NONE);
 
-                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_TRUE, ',', TextCase))
+                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, ',', M68K_TRUE, TextCase))
                     break;
             }
         }
@@ -1556,7 +1571,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
         if (PostIndexed)
         {
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_TRUE, (AddSeparator ? '+' : 0), TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? '+' : 0), M68K_TRUE, TextCase))
                     break;
 
             AddChar(DTCtx, ')', TC_NONE);
@@ -1564,7 +1579,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
             if (!AddIndexScale(DTCtx, &(Operand->Info.Memory), '+', M68K_TRUE, TextCase))
                 break;
 
-            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_TRUE, '+', TextCase))
+            if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, '+', M68K_TRUE, TextCase))
                 break;
         }
         // no! pre-indexed or indirect
@@ -1580,14 +1595,14 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
             }
 
             if (!IgnoreBaseDisplacement)
-                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, M68K_TRUE, (AddSeparator ? '+' : 0), TextCase))
+                if (!AddDisplacement(DTCtx, BaseDisplacementSize, BaseDisplacementValue, ForcedBaseDisplacement, (AddSeparator ? '+' : 0), M68K_TRUE, TextCase))
                     break;
 
             if (PreIndexed)
             {
                 AddChar(DTCtx, ')', TC_NONE);
 
-                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, M68K_TRUE, '+', TextCase))
+                if (!AddDisplacement(DTCtx, Operand->Info.Memory.Displacement.OuterSize, Operand->Info.Memory.Displacement.OuterValue, M68K_FALSE, '+', M68K_TRUE, TextCase))
                     break;
             }
         }
@@ -2780,7 +2795,7 @@ single_char:
             goto single_char;
 
         case M68K_DTIF_TEXT_MEMORY_ADD:
-            TextInfo->OutBuffer[0] = '+';
+                TextInfo->OutBuffer[0] = ',';
             goto single_char;
 
         case M68K_DTIF_TEXT_MEMORY_END:
