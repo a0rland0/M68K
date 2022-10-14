@@ -1263,6 +1263,7 @@ extern PM68KC_CONDITION_CODE_FLAG_ACTIONS   M68KGetConditionCodeFlagActions(M68K
 extern M68K_BOOL                            M68KGetIEEEValue(M68K_IEEE_VALUE_TYPE IEEEValueType, M68K_BOOL InvertSign, M68K_OPERAND_TYPE OperandType, PM68K_OPERAND_INFO OperandInfo);
 extern M68K_OPERAND_TYPE                    M68KGetImplicitImmediateOperandTypeForSize(M68K_SIZE Size, PM68K_UINT SizeInBytes /*M68K_NULL = ignored*/);
 extern M68K_INSTRUCTION_TYPE                M68KGetInstructionType(PM68KC_STR Text, M68K_LUINT TextSize /*0 = empty text*/);
+extern M68K_INSTRUCTION_TYPE                M68KGetInstructionTypeEx(PM68KC_STR Text, M68K_LUINT TextSize /*0 = empty text*/, PM68K_OPERAND ImplicitOperand /*M68K_NULL = ignored*/);
 extern PM68KC_STR                           M68KGetRegisterName(M68K_REGISTER_TYPE RegisterType);
 extern M68K_REGISTER_TYPE                   M68KGetRegisterType(PM68KC_STR Text, M68K_LUINT TextSize /*0 = empty text*/);
 extern M68K_SIZE                            M68KGetSizeFromChar(M68KC_CHAR Char);

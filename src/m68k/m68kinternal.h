@@ -4,14 +4,13 @@
 #include "m68k.h"
 #include "m68kinternal_amodes.h"
 
-// use this macro to catch internal errors with an assert
-#define MIN_BYTE        (M68K_SDWORD)(-MAX_BYTE - 1)
-#define MIN_LONG        (-MAX_LONG - 1)
-#define MIN_WORD        (M68K_SDWORD)(-MAX_WORD - 1)
-#define MAX_BYTE        (127L)
-#define MAX_LONG        (2147483647L)
-#define MAX_WORD        (32767L)
-#define NUM_WORDS_INSTR 8
+#define MIN_BYTE            (M68K_SDWORD)(-MAX_BYTE - 1)
+#define MIN_LONG            (-MAX_LONG - 1)
+#define MIN_WORD            (M68K_SDWORD)(-MAX_WORD - 1)
+#define MAX_BYTE            (127L)
+#define MAX_LONG            (2147483647L)
+#define MAX_WORD            (32767L)
+#define NUM_WORDS_INSTR     8
 
 // Bit 15 14 13 12 11 10  9  8  7  6  5  4  3  2  1  0
 // Val 0  1  1  1  C3 C4  C5 1  S1 S2 C1 C2 A1 A2 B1 B2
@@ -978,17 +977,321 @@ typedef struct BINARY_INSTR_HEADER
     */
 } BINARY_INSTR_HEADER, *PBINARY_INSTR_HEADER;
 
+// note: must be sorted in ascending order according to the mnemonic
+typedef enum MNEMONIC_ALIAS_TYPE
+{
+    // M68K_IT_BCC / M68K_CC_
+    MAT_BCC,
+    MAT_BCS,
+    MAT_BEQ,
+    MAT_BGE,
+    MAT_BGT,
+    MAT_BHI,
+    MAT_BHS,
+    MAT_BLE,
+    MAT_BLO,
+    MAT_BLS,
+    MAT_BLT,
+    MAT_BMI,
+    MAT_BNE,
+    MAT_BPL,
+    MAT_BVC,
+    MAT_BVS,
+
+    // M68K_IT_DBCC / M68K_CC_
+    MAT_DBCC,
+    MAT_DBCS,
+    MAT_DBEQ,
+    MAT_DBF,
+    MAT_DBGE,
+    MAT_DBGT,
+    MAT_DBHI,
+    MAT_DBHS,
+    MAT_DBLE,
+    MAT_DBLO,
+    MAT_DBLS,
+    MAT_DBLT,
+    MAT_DBMI,
+    MAT_DBNE,
+    MAT_DBPL,
+    MAT_DBRA,
+    MAT_DBT,
+    MAT_DBVC,
+    MAT_DBVS,
+
+    // M68K_IT_FBCC / M68K_FPCC_
+    MAT_FBEQ,
+    MAT_FBF,
+    MAT_FBGE,
+    MAT_FBGL,
+    MAT_FBGLE,
+    MAT_FBGT,
+    MAT_FBLE,
+    MAT_FBLT,
+    MAT_FBNE,
+    MAT_FBNGE,
+    MAT_FBNGL,
+    MAT_FBNGLE,
+    MAT_FBNGT,
+    MAT_FBNLE,
+    MAT_FBNLT,
+    MAT_FBOGE,
+    MAT_FBOGT,
+    MAT_FBOLE,
+    MAT_FBOLG,
+    MAT_FBOLT,
+    MAT_FBOR,
+    MAT_FBSEQ,
+    MAT_FBSF,
+    MAT_FBSNE,
+    MAT_FBST,
+    MAT_FBT,
+    MAT_FBUEQ,
+    MAT_FBUGE,
+    MAT_FBUGT,
+    MAT_FBULE,
+    MAT_FBULT,
+    MAT_FBUN,
+
+    // M68K_IT_FDBCC / M68K_FPCC_
+    MAT_FDBEQ,
+    MAT_FDBF,
+    MAT_FDBGE,
+    MAT_FDBGL,
+    MAT_FDBGLE,
+    MAT_FDBGT,
+    MAT_FDBLE,
+    MAT_FDBLT,
+    MAT_FDBNE,
+    MAT_FDBNGE,
+    MAT_FDBNGL,
+    MAT_FDBNGLE,
+    MAT_FDBNGT,
+    MAT_FDBNLE,
+    MAT_FDBNLT,
+    MAT_FDBOGE,
+    MAT_FDBOGT,
+    MAT_FDBOLE,
+    MAT_FDBOLG,
+    MAT_FDBOLT,
+    MAT_FDBOR,
+    MAT_FDBSEQ,
+    MAT_FDBSF,
+    MAT_FDBSNE,
+    MAT_FDBST,
+    MAT_FDBT,
+    MAT_FDBUEQ,
+    MAT_FDBUGE,
+    MAT_FDBUGT,
+    MAT_FDBULE,
+    MAT_FDBULT,
+    MAT_FDBUN,
+
+    // M68K_IT_FSCC / M68K_FPCC_
+    MAT_FSEQ,
+    MAT_FSF,
+    MAT_FSGE,
+    MAT_FSGL,
+    MAT_FSGLE,
+    MAT_FSGT,
+    MAT_FSLE,
+    MAT_FSLT,
+    MAT_FSNE,
+    MAT_FSNGE,
+    MAT_FSNGL,
+    MAT_FSNGLE,
+    MAT_FSNGT,
+    MAT_FSNLE,
+    MAT_FSNLT,
+    MAT_FSOGE,
+    MAT_FSOGT,
+    MAT_FSOLE,
+    MAT_FSOLG,
+    MAT_FSOLT,
+    MAT_FSOR,
+    MAT_FSSEQ,
+    MAT_FSSF,
+    MAT_FSSNE,
+    MAT_FSST,
+    MAT_FST,
+    MAT_FSUEQ,
+    MAT_FSUGE,
+    MAT_FSUGT,
+    MAT_FSULE,
+    MAT_FSULT,
+    MAT_FSUN,
+
+    // M68K_IT_FTRAPCC / M68K_FPCC_
+    MAT_FTRAP,
+    MAT_FTRAPEQ,
+    MAT_FTRAPF,
+    MAT_FTRAPGE,
+    MAT_FTRAPGL,
+    MAT_FTRAPGLE,
+    MAT_FTRAPGT,
+    MAT_FTRAPLE,
+    MAT_FTRAPLT,
+    MAT_FTRAPNE,
+    MAT_FTRAPNGE,
+    MAT_FTRAPNGL,
+    MAT_FTRAPNGLE,
+    MAT_FTRAPNGT,
+    MAT_FTRAPNLE,
+    MAT_FTRAPNLT,
+    MAT_FTRAPOGE,
+    MAT_FTRAPOGT,
+    MAT_FTRAPOLE,
+    MAT_FTRAPOLG,
+    MAT_FTRAPOLT,
+    MAT_FTRAPOR,
+    MAT_FTRAPSEQ,
+    MAT_FTRAPSF,
+    MAT_FTRAPSNE,
+    MAT_FTRAPST,
+    MAT_FTRAPT,
+    MAT_FTRAPUEQ,
+    MAT_FTRAPUGE,
+    MAT_FTRAPUGT,
+    MAT_FTRAPULE,
+    MAT_FTRAPULT,
+    MAT_FTRAPUN,
+
+    // M68K_IT_PBCC / M68K_MMUCC_
+    MAT_PBAC,
+    MAT_PBAS,
+    MAT_PBBC,
+    MAT_PBBS,
+    MAT_PBCC,
+    MAT_PBCS,
+    MAT_PBGC,
+    MAT_PBGS,
+    MAT_PBIC,
+    MAT_PBIS,
+    MAT_PBLC,
+    MAT_PBLS,
+    MAT_PBSC,
+    MAT_PBSS,
+    MAT_PBWC,
+    MAT_PBWS,
+
+    // M68K_IT_PDBCC / M68K_MMUCC_
+    MAT_PDBAC,
+    MAT_PDBAS,
+    MAT_PDBBC,
+    MAT_PDBBS,
+    MAT_PDBCC,
+    MAT_PDBCS,
+    MAT_PDBGC,
+    MAT_PDBGS,
+    MAT_PDBIC,
+    MAT_PDBIS,
+    MAT_PDBLC,
+    MAT_PDBLS,
+    MAT_PDBSC,
+    MAT_PDBSS,
+    MAT_PDBWC,
+    MAT_PDBWS,
+
+    // M68K_IT_PSCC / M68K_MMUCC_
+    MAT_PSAC,
+    MAT_PSAS,
+    MAT_PSBC,
+    MAT_PSBS,
+    MAT_PSCC,
+    MAT_PSCS,
+    MAT_PSGC,
+    MAT_PSGS,
+    MAT_PSIC,
+    MAT_PSIS,
+    MAT_PSLC,
+    MAT_PSLS,
+    MAT_PSSC,
+    MAT_PSSS,
+    MAT_PSWC,
+    MAT_PSWS,
+
+    // M68K_IT_PTRAPCC / M68K_MMUCC_
+    MAT_PTRAPAC,
+    MAT_PTRAPAS,
+    MAT_PTRAPBC,
+    MAT_PTRAPBS,
+    MAT_PTRAPCC,
+    MAT_PTRAPCS,
+    MAT_PTRAPGC,
+    MAT_PTRAPGS,
+    MAT_PTRAPIC,
+    MAT_PTRAPIS,
+    MAT_PTRAPLC,
+    MAT_PTRAPLS,
+    MAT_PTRAPSC,
+    MAT_PTRAPSS,
+    MAT_PTRAPWC,
+    MAT_PTRAPWS,
+
+    // M68K_IT_SCC / M68K_CC_
+    MAT_SCC,
+    MAT_SCS,
+    MAT_SEQ,
+    MAT_SF,
+    MAT_SGE,
+    MAT_SGT,
+    MAT_SHI,
+    MAT_SHS,
+    MAT_SLE,
+    MAT_SLO,
+    MAT_SLS,
+    MAT_SLT,
+    MAT_SMI,
+    MAT_SNE,
+    MAT_SPL,
+    MAT_ST,
+    MAT_SVC,
+    MAT_SVS,
+
+    // M68K_IT_TRAPCC / M68K_CC_
+    MAT_TRAPCC,
+    MAT_TRAPCS,
+    MAT_TRAPEQ,
+    MAT_TRAPF,
+    MAT_TRAPGE,
+    MAT_TRAPGT,
+    MAT_TRAPHI,
+    MAT_TRAPHS,
+    MAT_TRAPLE,
+    MAT_TRAPLO,
+    MAT_TRAPLS,
+    MAT_TRAPLT,
+    MAT_TRAPMI,
+    MAT_TRAPNE,
+    MAT_TRAPPL,
+    MAT_TRAPT,
+    MAT_TRAPVC,
+    MAT_TRAPVS,
+
+    MAT__SIZEOF__,
+} MNEMONIC_ALIAS_TYPE, *PMNEMONIC_ALIAS_TYPE;
+
+typedef struct MNEMONIC_ALIAS
+{
+    M68K_INSTRUCTION_TYPE_VALUE MasterType;     // master instruction type
+    M68K_OPERAND_TYPE_VALUE     OperandType;    // type of implicit operand
+    M68K_BYTE                   OperandValue;   // value for the implicit operand
+} MNEMONIC_ALIAS, *PMNEMONIC_ALIAS;
+
+typedef M68K_CONST MNEMONIC_ALIAS *PCMNEMONIC_ALIAS;
+
 // m68kasm_text.c
 extern M68K_REGISTER_TYPE_VALUE     _M68KAsmTextBinarySearchRegister(PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd);
 extern M68K_UINT                    _M68KAsmTextBinarySearchText(PM68KC_STR Table[], M68K_UINT Min, M68K_UINT Max, PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd);
 extern M68K_BOOL                    _M68KAsmTextCheckFixImmediateSize(M68K_SDWORD SValue, PM68K_SIZE_VALUE Size);
-extern M68K_INSTRUCTION_TYPE_VALUE  _M68KAsmTextCheckMnemonic(PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd);
+extern M68K_INSTRUCTION_TYPE_VALUE  _M68KAsmTextCheckMnemonic(PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd, PM68K_OPERAND ImplicitOperand /*can be M68K_NULL*/);
 extern M68K_CHAR                    _M68KAsmTextConvertToLowerCase(M68K_CHAR Char);
 
 // m68kasm_tables.c
-extern M68KC_WORD   _M68KAsmIndexFirstWord[M68K_IT__SIZEOF__ - 1];
-extern M68KC_WORD   _M68KAsmOpcodeMaps[M68K_IT__SIZEOF__ - 1];
-extern M68KC_WORD   _M68KAsmWords[];
+extern M68KC_WORD                   _M68KAsmIndexFirstWord[M68K_IT__SIZEOF__ - 1];
+extern M68K_CONST MNEMONIC_ALIAS    _M68KAsmMnemonicAliases[MAT__SIZEOF__];
+extern M68KC_WORD                   _M68KAsmOpcodeMaps[M68K_IT__SIZEOF__ - 1];
+extern M68KC_WORD                   _M68KAsmWords[];
 
 // m68kcc_tables.c
 extern M68KC_CONDITION_CODE_FLAG_ACTIONS _M68KConditionCodeFlagActions[CCF__SIZEOF__];
@@ -1053,6 +1356,7 @@ extern M68KC_CHAR                   _M68KTextHexChars[16];
 extern PM68KC_STR                   _M68KTextIEEEValues[M68K_IEEE_VT__SIZEOF__];
 extern PM68KC_STR                   _M68KTextIEEEValuesXL[M68K_IEEE_VT__SIZEOF__];
 extern PM68KC_STR                   _M68KTextMMUConditionCodes[M68K_MMUCC__SIZEOF__];
+extern PM68KC_STR                   _M68KTextMnemonicAliases[MAT__SIZEOF__];
 extern PM68KC_STR                   _M68KTextMnemonics[M68K_IT__SIZEOF__];
 extern PM68KC_STR                   _M68KTextRegisters[M68K_RT__SIZEOF__];
 extern M68K_CHAR                    _M68KTextScaleChars[M68K_SCALE__SIZEOF__];

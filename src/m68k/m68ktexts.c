@@ -188,6 +188,286 @@ PM68KC_STR _M68KTextMMUConditionCodes[M68K_MMUCC__SIZEOF__] =
     "cc",   // M68K_MMUCC_CC
 };
 
+// table with the text of each mnemonics alias
+PM68KC_STR _M68KTextMnemonicAliases[MAT__SIZEOF__] =
+{
+    "bcc",         // MAT_BCC
+    "bcs",         // MAT_BCS
+    "beq",         // MAT_BEQ
+    "bge",         // MAT_BGE
+    "bgt",         // MAT_BGT
+    "bhi",         // MAT_BHI
+    "bhs",         // MAT_BHS
+    "ble",         // MAT_BLE
+    "blo",         // MAT_BLO
+    "bls",         // MAT_BLS
+    "blt",         // MAT_BLT
+    "bmi",         // MAT_BMI
+    "bne",         // MAT_BNE
+    "bpl",         // MAT_BPL
+    "bvc",         // MAT_BVC
+    "bvs",         // MAT_BVS
+
+    "dbcc",        // MAT_DBCC
+    "dbcs",        // MAT_DBCS
+    "dbeq",        // MAT_DBEQ
+    "dbf",         // MAT_DBF
+    "dbge",        // MAT_DBGE
+    "dbgt",        // MAT_DBGT
+    "dbhi",        // MAT_DBHI
+    "dbhs",        // MAT_DBHS
+    "dble",        // MAT_DBLE
+    "dblo",        // MAT_DBLO
+    "dbls",        // MAT_DBLS
+    "dblt",        // MAT_DBLT
+    "dbmi",        // MAT_DBMI
+    "dbne",        // MAT_DBNE
+    "dbpl",        // MAT_DBPL
+    "dbra",        // MAT_DBRA
+    "dbt",         // MAT_DBT
+    "dbvc",        // MAT_DBVC
+    "dbvs",        // MAT_DBVS
+    
+    "fbeq",        // MAT_FBEQ
+    "fbf",         // MAT_FBF
+    "fbge",        // MAT_FBGE
+    "fbgl",        // MAT_FBGL
+    "fbgle",       // MAT_FBGLE
+    "fbgt",        // MAT_FBGT
+    "fble",        // MAT_FBLE
+    "fblt",        // MAT_FBLT
+    "fbne",        // MAT_FBNE
+    "fbnge",       // MAT_FBNGE
+    "fbngl",       // MAT_FBNGL
+    "fbngle",      // MAT_FBNGLE
+    "fbngt",       // MAT_FBNGT
+    "fbnle",       // MAT_FBNLE
+    "fbnlt",       // MAT_FBNLT
+    "fboge",       // MAT_FBOGE
+    "fbogt",       // MAT_FBOGT
+    "fbole",       // MAT_FBOLE
+    "fbolg",       // MAT_FBOLG
+    "fbolt",       // MAT_FBOLT
+    "fbor",        // MAT_FBOR
+    "fbseq",       // MAT_FBSEQ
+    "fbsf",        // MAT_FBSF
+    "fbsne",       // MAT_FBSNE
+    "fbst",        // MAT_FBST
+    "fbt",         // MAT_FBT
+    "fbueq",       // MAT_FBUEQ
+    "fbuge",       // MAT_FBUGE
+    "fbugt",       // MAT_FBUGT
+    "fbule",       // MAT_FBULE
+    "fbult",       // MAT_FBULT
+    "fbun",        // MAT_FBUN
+    
+    "fdbeq",       // MAT_FDBEQ
+    "fdbf",        // MAT_FDBF
+    "fdbge",       // MAT_FDBGE
+    "fdbgl",       // MAT_FDBGL
+    "fdbgle",      // MAT_FDBGLE
+    "fdbgt",       // MAT_FDBGT
+    "fdble",       // MAT_FDBLE
+    "fdblt",       // MAT_FDBLT
+    "fdbne",       // MAT_FDBNE
+    "fdbnge",      // MAT_FDBNGE
+    "fdbngl",      // MAT_FDBNGL
+    "fdbngle",     // MAT_FDBNGLE
+    "fdbngt",      // MAT_FDBNGT
+    "fdbnle",      // MAT_FDBNLE
+    "fdbnlt",      // MAT_FDBNLT
+    "fdboge",      // MAT_FDBOGE
+    "fdbogt",      // MAT_FDBOGT
+    "fdbole",      // MAT_FDBOLE
+    "fdbolg",      // MAT_FDBOLG
+    "fdbolt",      // MAT_FDBOLT
+    "fdbor",       // MAT_FDBOR
+    "fdbseq",      // MAT_FDBSEQ
+    "fdbsf",       // MAT_FDBSF
+    "fdbsne",      // MAT_FDBSNE
+    "fdbst",       // MAT_FDBST
+    "fdbt",        // MAT_FDBT
+    "fdbueq",      // MAT_FDBUEQ
+    "fdbuge",      // MAT_FDBUGE
+    "fdbugt",      // MAT_FDBUGT
+    "fdbule",      // MAT_FDBULE
+    "fdbult",      // MAT_FDBULT
+    "fdbun",       // MAT_FDBUN
+    
+    "fseq",        // MAT_FSEQ
+    "fsf",         // MAT_FSF
+    "fsge",        // MAT_FSGE
+    "fsgl",        // MAT_FSGL
+    "fsgle",       // MAT_FSGLE
+    "fsgt",        // MAT_FSGT
+    "fsle",        // MAT_FSLE
+    "fslt",        // MAT_FSLT
+    "fsne",        // MAT_FSNE
+    "fsnge",       // MAT_FSNGE
+    "fsngl",       // MAT_FSNGL
+    "fsngle",      // MAT_FSNGLE
+    "fsngt",       // MAT_FSNGT
+    "fsnle",       // MAT_FSNLE
+    "fsnlt",       // MAT_FSNLT
+    "fsoge",       // MAT_FSOGE
+    "fsogt",       // MAT_FSOGT
+    "fsole",       // MAT_FSOLE
+    "fsolg",       // MAT_FSOLG
+    "fsolt",       // MAT_FSOLT
+    "fsor",        // MAT_FSOR
+    "fsseq",       // MAT_FSSEQ
+    "fssf",        // MAT_FSSF
+    "fssne",       // MAT_FSSNE
+    "fsst",        // MAT_FSST
+    "fst",         // MAT_FST
+    "fsueq",       // MAT_FSUEQ
+    "fsuge",       // MAT_FSUGE
+    "fsugt",       // MAT_FSUGT
+    "fsule",       // MAT_FSULE
+    "fsult",       // MAT_FSULT
+    "fsun",        // MAT_FSUN
+    
+    "ftrap",       // MAT_FTRAP
+    "ftrapeq",     // MAT_FTRAPEQ
+    "ftrapf",      // MAT_FTRAPF
+    "ftrapge",     // MAT_FTRAPGE
+    "ftrapgl",     // MAT_FTRAPGL
+    "ftrapgle",    // MAT_FTRAPGLE
+    "ftrapgt",     // MAT_FTRAPGT
+    "ftraple",     // MAT_FTRAPLE
+    "ftraplt",     // MAT_FTRAPLT
+    "ftrapne",     // MAT_FTRAPNE
+    "ftrapnge",    // MAT_FTRAPNGE
+    "ftrapngl",    // MAT_FTRAPNGL
+    "ftrapngle",   // MAT_FTRAPNGLE
+    "ftrapngt",    // MAT_FTRAPNGT
+    "ftrapnle",    // MAT_FTRAPNLE
+    "ftrapnlt",    // MAT_FTRAPNLT
+    "ftrapoge",    // MAT_FTRAPOGE
+    "ftrapogt",    // MAT_FTRAPOGT
+    "ftrapole",    // MAT_FTRAPOLE
+    "ftrapolg",    // MAT_FTRAPOLG
+    "ftrapolt",    // MAT_FTRAPOLT
+    "ftrapor",     // MAT_FTRAPOR
+    "ftrapseq",    // MAT_FTRAPSEQ
+    "ftrapsf",     // MAT_FTRAPSF
+    "ftrapsne",    // MAT_FTRAPSNE
+    "ftrapst",     // MAT_FTRAPST
+    "ftrapt",      // MAT_FTRAPT
+    "ftrapueq",    // MAT_FTRAPUEQ
+    "ftrapuge",    // MAT_FTRAPUGE
+    "ftrapugt",    // MAT_FTRAPUGT
+    "ftrapule",    // MAT_FTRAPULE
+    "ftrapult",    // MAT_FTRAPULT
+    "ftrapun",     // MAT_FTRAPUN
+    
+    "pbac",        // MAT_PBAC
+    "pbas",        // MAT_PBAS
+    "pbbc",        // MAT_PBBC
+    "pbbs",        // MAT_PBBS
+    "pbcc",        // MAT_PBCC
+    "pbcs",        // MAT_PBCS
+    "pbgc",        // MAT_PBGC
+    "pbgs",        // MAT_PBGS
+    "pbic",        // MAT_PBIC
+    "pbis",        // MAT_PBIS
+    "pblc",        // MAT_PBLC
+    "pbls",        // MAT_PBLS
+    "pbsc",        // MAT_PBSC
+    "pbss",        // MAT_PBSS
+    "pbwc",        // MAT_PBWC
+    "pbws",        // MAT_PBWS
+    
+    "pdbac",       // MAT_PDBAC
+    "pdbas",       // MAT_PDBAS
+    "pdbbc",       // MAT_PDBBC
+    "pdbbs",       // MAT_PDBBS
+    "pdbcc",       // MAT_PDBCC
+    "pdbcs",       // MAT_PDBCS
+    "pdbgc",       // MAT_PDBGC
+    "pdbgs",       // MAT_PDBGS
+    "pdbic",       // MAT_PDBIC
+    "pdbis",       // MAT_PDBIS
+    "pdblc",       // MAT_PDBLC
+    "pdbls",       // MAT_PDBLS
+    "pdbsc",       // MAT_PDBSC
+    "pdbss",       // MAT_PDBSS
+    "pdbwc",       // MAT_PDBWC
+    "pdbws",       // MAT_PDBWS
+    
+    "psac",        // MAT_PSAC
+    "psas",        // MAT_PSAS
+    "psbc",        // MAT_PSBC
+    "psbs",        // MAT_PSBS
+    "pscc",        // MAT_PSCC
+    "pscs",        // MAT_PSCS
+    "psgc",        // MAT_PSGC
+    "psgs",        // MAT_PSGS
+    "psic",        // MAT_PSIC
+    "psis",        // MAT_PSIS
+    "pslc",        // MAT_PSLC
+    "psls",        // MAT_PSLS
+    "pssc",        // MAT_PSSC
+    "psss",        // MAT_PSSS
+    "pswc",        // MAT_PSWC
+    "psws",        // MAT_PSWS
+    
+    "ptrapac",     // MAT_PTRAPAC
+    "ptrapas",     // MAT_PTRAPAS
+    "ptrapbc",     // MAT_PTRAPBC
+    "ptrapbs",     // MAT_PTRAPBS
+    "ptrapcc",     // MAT_PTRAPCC
+    "ptrapcs",     // MAT_PTRAPCS
+    "ptrapgc",     // MAT_PTRAPGC
+    "ptrapgs",     // MAT_PTRAPGS
+    "ptrapic",     // MAT_PTRAPIC
+    "ptrapis",     // MAT_PTRAPIS
+    "ptraplc",     // MAT_PTRAPLC
+    "ptrapls",     // MAT_PTRAPLS
+    "ptrapsc",     // MAT_PTRAPSC
+    "ptrapss",     // MAT_PTRAPSS
+    "ptrapwc",     // MAT_PTRAPWC
+    "ptrapws",     // MAT_PTRAPWS
+    
+    "scc",         // MAT_SCC
+    "scs",         // MAT_SCS
+    "seq",         // MAT_SEQ
+    "sf",          // MAT_SF
+    "sge",         // MAT_SGE
+    "sgt",         // MAT_SGT
+    "shi",         // MAT_SHI
+    "shs",         // MAT_SHS
+    "sle",         // MAT_SLE
+    "slo",         // MAT_SLO
+    "sls",         // MAT_SLS
+    "slt",         // MAT_SLT
+    "smi",         // MAT_SMI
+    "sne",         // MAT_SNE
+    "spl",         // MAT_SPL
+    "st",          // MAT_ST
+    "svc",         // MAT_SVC
+    "svs",         // MAT_SVS
+    
+    "trapcc",      // MAT_TRAPCC
+    "trapcs",      // MAT_TRAPCS
+    "trapeq",      // MAT_TRAPEQ
+    "trapf",       // MAT_TRAPF
+    "trapge",      // MAT_TRAPGE
+    "trapgt",      // MAT_TRAPGT
+    "traphi",      // MAT_TRAPHI
+    "traphs",      // MAT_TRAPHS
+    "traple",      // MAT_TRAPLE
+    "traplo",      // MAT_TRAPLO
+    "trapls",      // MAT_TRAPLS
+    "traplt",      // MAT_TRAPLT
+    "trapmi",      // MAT_TRAPMI
+    "trapne",      // MAT_TRAPNE
+    "trappl",      // MAT_TRAPPL
+    "trapt",       // MAT_TRAPT
+    "trapvc",      // MAT_TRAPVC
+    "trapvs",      // MAT_TRAPVS
+};
+
 // table with the mnemonics for each master type
 PM68KC_STR _M68KTextMnemonics[M68K_IT__SIZEOF__] = 
 {
@@ -220,7 +500,7 @@ PM68KC_STR _M68KTextMnemonics[M68K_IT__SIZEOF__] =
     "bgnd",         // M68K_IT_BGND
     "bkpt",         // M68K_IT_BKPT
     "bra",          // M68K_IT_BRA
-    "bsel",          // M68K_IT_BSEL
+    "bsel",         // M68K_IT_BSEL
     "bset",         // M68K_IT_BSET
     "bsr",          // M68K_IT_BSR
     "btst",         // M68K_IT_BTST

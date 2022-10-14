@@ -315,7 +315,12 @@ M68K_OPERAND_TYPE M68KGetImplicitImmediateOperandTypeForSize(M68K_SIZE Size, PM6
 // get the instruction type using a name
 M68K_INSTRUCTION_TYPE M68KGetInstructionType(PM68KC_STR Text, M68K_LUINT TextSize /*0 = empty text*/)
 {
-    return (Text != M68K_NULL && TextSize != 0 ? _M68KAsmTextCheckMnemonic(Text, Text + TextSize) : M68K_IT_INVALID);
+    return M68KGetInstructionTypeEx(Text, TextSize, M68K_NULL);
+}
+
+M68K_INSTRUCTION_TYPE M68KGetInstructionTypeEx(PM68KC_STR Text, M68K_LUINT TextSize /*0 = empty text*/, PM68K_OPERAND ImplicitOperand /*M68K_NULL = ignored*/)
+{
+    return (Text != M68K_NULL && TextSize != 0 ? _M68KAsmTextCheckMnemonic(Text, Text + TextSize, ImplicitOperand) : M68K_IT_INVALID);
 }
 
 // get the register name using a type

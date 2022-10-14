@@ -31,7 +31,7 @@ static M68K_BOOL    ParseIEEEValue(PASM_TEXT_CTX ATCtx, PM68K_IEEE_VALUE_TYPE Pa
 static M68K_BOOL    ParseImmediate(PASM_TEXT_CTX ATCtx, M68K_SDWORD MinSigned, M68K_SDWORD MaxSigned, PM68K_SDWORD ParsedImmediate);
 static M68K_BOOL    ParseList(PASM_TEXT_CTX ATCtx, PM68K_REGISTER_LIST ParsedRegisterList);
 static M68K_BOOL    ParseMemory(PASM_TEXT_CTX ATCtx, PM68K_OPERAND ParsedOperand);
-static M68K_BOOL    ParseMnemonic(PASM_TEXT_CTX ATCtx, PM68K_INSTRUCTION_TYPE_VALUE ParsedIType);
+static M68K_BOOL    ParseMnemonic(PASM_TEXT_CTX ATCtx, PM68K_INSTRUCTION_TYPE_VALUE ParsedIType, PM68K_OPERAND *Operand);
 static M68K_BOOL    ParseOffsetWidth(PASM_TEXT_CTX ATCtx, PM68K_OFFSET_WIDTH ParsedOffsetWidth);
 static M68K_BOOL    ParseOperand(PASM_TEXT_CTX ATCtx, PM68K_OPERAND Operand);
 static M68K_BOOL    ParsePackedDecimal(PASM_TEXT_CTX ATCtx, PM68K_PACKED_DECIMAL ParsedPackedDecimal);
@@ -1553,16 +1553,27 @@ unexpected_char:
 }
 
 // parse a mnemonic; [a-z][0-9a-z]*
-static M68K_BOOL ParseMnemonic(PASM_TEXT_CTX ATCtx, PM68K_INSTRUCTION_TYPE_VALUE ParsedIType)
+static M68K_BOOL ParseMnemonic(PASM_TEXT_CTX ATCtx, PM68K_INSTRUCTION_TYPE_VALUE ParsedIType, PM68K_OPERAND *Operand)
 {
     PM68KC_CHAR Start = ATCtx->Error.Location;
 
     if (ParseIdentifier(ATCtx, M68K_TRUE))
     {
+        PM68K_OPERAND FirstOperand = (Operand != NULL ? *Operand : M68K_NULL);
+
         // search in the table of mnemonics
-        M68K_INSTRUCTION_TYPE_VALUE iType = _M68KAsmTextCheckMnemonic(Start, ATCtx->Error.Location);
+        M68K_INSTRUCTION_TYPE_VALUE iType = _M68KAsmTextCheckMnemonic(Start, ATCtx->Error.Location, FirstOperand);
         if (iType != M68K_IT_INVALID)
         {
+            // requires an implicit operand?
+            if (FirstOperand != NULL)
+            {
+                // was it used?
+                if (FirstOperand->Type != M68K_OT_NONE)
+                    // skip it
+                    (*Operand)++;
+            }
+
             // the mnemonic is valid
             *ParsedIType = iType;
             return M68K_TRUE;
@@ -2516,10 +2527,47 @@ M68K_BOOL _M68KAsmTextCheckFixImmediateSize(M68K_SDWORD SValue, PM68K_SIZE_VALUE
 }
 
 // get an instruction type using the mnemonic
-M68K_INSTRUCTION_TYPE_VALUE _M68KAsmTextCheckMnemonic(PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd)
+M68K_INSTRUCTION_TYPE_VALUE _M68KAsmTextCheckMnemonic(PM68KC_STR DynamicTextStart, PM68KC_STR DynamicTextEnd, PM68K_OPERAND ImplicitOperand /*can be M68K_NULL*/)
 {
+    M68K_UINT Index;
+
+    // can we check the mnemonic aliases?
+    if (ImplicitOperand != M68K_NULL)
+    {
+        Index = _M68KAsmTextBinarySearchText(_M68KTextMnemonicAliases, 0, MAT__SIZEOF__ - 1, DynamicTextStart, DynamicTextEnd);
+        if (Index < MAT__SIZEOF__)
+        {
+            PCMNEMONIC_ALIAS alias = _M68KAsmMnemonicAliases + Index;
+            ImplicitOperand->Type = alias->OperandType;
+            switch (alias->OperandType)
+            {
+                case M68K_OT_CONDITION_CODE:
+                    ImplicitOperand->Info.ConditionCode = (M68K_CONDITION_CODE_VALUE)alias->OperandValue;
+                    break;
+
+                case M68K_OT_FPU_CONDITION_CODE:
+                    ImplicitOperand->Info.FpuConditionCode = (M68K_FPU_CONDITION_CODE)alias->OperandValue;
+                    break;
+
+                case M68K_OT_MMU_CONDITION_CODE:
+                    ImplicitOperand->Info.MMUConditionCode = (M68K_MMU_CONDITION_CODE)alias->OperandValue;
+                    break;
+
+                default:
+                    // we don't know how to init the operand
+                    ImplicitOperand->Type = M68K_OT_NONE;
+                    break;
+            }
+
+            if (ImplicitOperand->Type != M68K_OT_NONE)
+                return alias->MasterType;
+        }
+        else
+            ImplicitOperand->Type = M68K_OT_NONE;
+    }
+
     // search in the table of mnemonics
-    M68K_UINT Index = _M68KAsmTextBinarySearchText(_M68KTextMnemonics, 1, M68K_IT__SIZEOF__ - 1, DynamicTextStart, DynamicTextEnd);
+    Index = _M68KAsmTextBinarySearchText(_M68KTextMnemonics, 1, M68K_IT__SIZEOF__ - 1, DynamicTextStart, DynamicTextEnd);
     return (Index < M68K_IT__SIZEOF__ ? (M68K_INSTRUCTION_TYPE_VALUE)Index : M68K_IT_INVALID);
 }
 
@@ -2548,7 +2596,7 @@ static M68K_INT CompareTexts(PM68KC_STR StaticText, PM68KC_STR DynamicTextStart,
     return (*StaticText == 0 ? 0 : 1);
 }
 
-// assemble an instruction using a textual representation;
+// assemble an instruction using a textual representation
 M68K_WORD M68KAssembleText(PM68K_WORD Address, PM68KC_STR Text, M68K_ARCHITECTURE Architectures, M68K_ASM_FLAGS Flags, PM68K_WORD OutBuffer /*M68K_NULL = return total size*/, M68K_WORD OutSize /*maximum in words*/, PM68K_ASM_ERROR Error /*can be M68K_NULL*/)
 {
     // check the parameters
@@ -2565,8 +2613,10 @@ M68K_WORD M68KAssembleText(PM68K_WORD Address, PM68KC_STR Text, M68K_ARCHITECTUR
         // skip all spaces at start
         SkipSpaces(&ATCtx);
 
-        // parse the mnemonic
-        if (ParseMnemonic(&ATCtx, &(ATCtx.Instruction.Type)))
+        // parse the mnemonic; some instructions (cc) will use the first operand
+        PM68K_OPERAND Operand = ATCtx.Instruction.Operands;
+
+        if (ParseMnemonic(&ATCtx, &(ATCtx.Instruction.Type), &Operand))
         {
             if (!ParseSize(&ATCtx, M68K_FALSE, &(ATCtx.Instruction.Size)))
                 // implicit size
@@ -2574,9 +2624,7 @@ M68K_WORD M68KAssembleText(PM68K_WORD Address, PM68KC_STR Text, M68K_ARCHITECTUR
 
             SkipSpaces(&ATCtx);
 
-            PM68K_OPERAND Operand = ATCtx.Instruction.Operands;
-
-            for (M68K_UINT Index = 0; Index < M68K_MAXIMUM_NUMBER_OPERANDS; Index++, Operand++)
+            for (M68K_UINT OperandIndex = (M68K_UINT)(Operand - ATCtx.Instruction.Operands); OperandIndex < M68K_MAXIMUM_NUMBER_OPERANDS; OperandIndex++, Operand++)
             {
                 // reached the end of the text?
                 if (ATCtx.Error.Location[0] == 0)
@@ -2598,7 +2646,7 @@ M68K_WORD M68KAssembleText(PM68K_WORD Address, PM68KC_STR Text, M68K_ARCHITECTUR
                 if (Char == ',')
                 {
                     // allowed?
-                    if (Index + 1 >= M68K_MAXIMUM_NUMBER_OPERANDS)
+                    if (OperandIndex + 1 >= M68K_MAXIMUM_NUMBER_OPERANDS)
                     {
                         ATCtx.Error.Type = M68K_AET_TOO_MANY_OPERANDS;
                         break;
@@ -2613,7 +2661,7 @@ M68K_WORD M68KAssembleText(PM68K_WORD Address, PM68KC_STR Text, M68K_ARCHITECTUR
                 {
 no_more_operands:
                     // yes! make sure the remaining operands have type M68K_OT_NONE
-                    for (Index++, Operand++; Index < M68K_MAXIMUM_NUMBER_OPERANDS; Index++, Operand++)
+                    for (OperandIndex++, Operand++; OperandIndex < M68K_MAXIMUM_NUMBER_OPERANDS; OperandIndex++, Operand++)
                         Operand->Type = M68K_OT_NONE;
 
                     // now we are ready to assemble the instruction
