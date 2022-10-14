@@ -251,10 +251,6 @@ static M68K_BOOL AddOperand(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand, T
     case M68K_OT_ADDRESS_B:
     case M68K_OT_ADDRESS_L:
     case M68K_OT_ADDRESS_W:
-        // addresses are allowed?
-        if ((DTCtx->TextFlags & M68K_DTFLG_DISPLACEMENT_AS_VALUE) != 0)
-            break;
-
         // do we have a valid offset?
         if (DTCtx->Instruction->PCOffset == 0)
             break;
@@ -833,10 +829,6 @@ static M68K_BOOL AddOperandAssembler(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND O
         TypeText = _M68KTextAsmOperandTypes[ATOT_ADDRESS_B];
 
 address:
-        // addresses are allowed?
-        if ((DTCtx->TextFlags & M68K_DTFLG_DISPLACEMENT_AS_VALUE) != 0)
-            break;
-
         // do we have a valid offset?
         if (DTCtx->Instruction->PCOffset == 0)
             break;
@@ -1109,7 +1101,7 @@ memory:
             (
                 (Operand->Info.Memory.Base == M68K_RT_NONE || Operand->Info.Memory.Base == M68K_RT_ZPC) &&
                 Operand->Info.Memory.Index.Register == M68K_RT_NONE &&
-                BaseDisplacementSize == M68K_SIZE_W && /* check "case 6:" in InitAModeOperandEx */
+                (BaseDisplacementSize == M68K_SIZE_W || BaseDisplacementSize == M68K_SIZE_L) && /* check "case 6:" in InitAModeOperandEx */
                 BaseDisplacementValue == 0 &&
                 Operand->Info.Memory.Displacement.OuterSize == M68K_SIZE_NONE
             )
@@ -1554,7 +1546,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
             (
                 (Operand->Info.Memory.Base == M68K_RT_NONE || Operand->Info.Memory.Base == M68K_RT_ZPC) &&
                 Operand->Info.Memory.Index.Register == M68K_RT_NONE &&
-                BaseDisplacementSize == M68K_SIZE_W && /* check "case 6:" in InitAModeOperandEx */
+                (BaseDisplacementSize == M68K_SIZE_W || BaseDisplacementSize == M68K_SIZE_L) && /* check "case 6:" in InitAModeOperandEx */
                 BaseDisplacementValue == 0 &&
                 Operand->Info.Memory.Displacement.OuterSize == M68K_SIZE_NONE
             )
@@ -2913,11 +2905,13 @@ M68K_LUINT M68KDisassembleTextEx(PM68K_WORD Address, PM68K_INSTRUCTION Instructi
             if (Char == 'L' || (DTCtx.TextFlags & M68K_DTFLG_ALL_LOWERCASE) != 0)
             {
                 TextCase = TC_LOWER;
+                if (Char == 'L')
                 Format++;
             }
             else if (Char == 'U' || (DTCtx.TextFlags & M68K_DTFLG_ALL_UPPERCASE) != 0)
             {
                 TextCase = TC_UPPER;
+                if (Char == 'U')
                 Format++;
             }
 
