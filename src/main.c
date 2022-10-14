@@ -25,7 +25,7 @@
 #define FMT_REFADDR         "0x%08x"
 #define MAX_BINARY_SIZE     (3 * 1024 * 1024)
 #define MAX_NUMBER_BYTES    256
-#define VERSION             "2.0 (" __DATE__ " " __TIME__ ")"
+#define VERSION             "2.2 (" __DATE__ " " __TIME__ ")"
 
 // forward declarations
 static void         AsmTest(PM68K_WORD address, PM68K_INSTRUCTION instruction, M68K_BOOL testText);
