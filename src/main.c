@@ -1034,13 +1034,14 @@ int main(int argc, char* argv[])
         // "-asm-flags", "0x0002",
         // "-asm-tests", 
         // "-dis-flags", "0x001f",
-        "-dis-for-assembler",
+        // "-dis-for-assembler",
         // "-dis-text-format", "%40w %m%s%-%o",
-        // "-dis-text-flags", "0x0050",
-        // "-file-position", "0x001b571e",
+        // "-dis-text-flags", "0x0051",
+        "-file-position", "0x22f22",
         // "-file-size", "0x7fffffff",
         // "ref-addr", "0x00f80000",
 
+        /*
         "a", 
             // "move.l %r(d5), %r(b1)",
             // "cprestore %cid(0x02), %m([&-0x0001270e],a2.w*2,0x000f4240)",
@@ -1055,17 +1056,13 @@ int main(int argc, char* argv[])
         */
 
         /*
-        "df",
-            "d:\\temp\\m68k\\all.dat"
+        "df", "d:\\temp\\m68k\\all.dat"
         */
 
+        "db", "d:\\temp\\m68k.dat",
+
         /*
-        "db",
-            "d:\\temp\\m68k.dat",
-        */
-        /*
-        "gb",
-            "d:\\temp\\m68k.dat",
+        "gb", "d:\\temp\\m68k.dat",
         */
 
         /*
@@ -1073,6 +1070,10 @@ int main(int argc, char* argv[])
             "Y:\\Projects\\VC\\M68K\\M68K\\src\\m68k\\gen\\index_first_words.h",
             "Y:\\Projects\\VC\\M68K\\M68K\\src\\m68k\\gen\\opcode_maps.h",
             "Y:\\Projects\\VC\\M68K\\M68K\\src\\m68k\\gen\\words.h",
+        */
+
+        /*
+        "d", "e8f0 0998 01f1",
         */
     };
 
