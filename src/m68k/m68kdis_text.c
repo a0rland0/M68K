@@ -473,7 +473,7 @@ displacement:
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_B:
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_L:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
 
 memory:
         // pre-decrement?
@@ -631,13 +631,13 @@ memory:
     case M68K_OT_MEM_INDIRECT_POST_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_POST_INDEXED:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_TRUE;
+        PostIndexed = M68K_TRUE;
         goto memory;
 
     case M68K_OT_MEM_INDIRECT_PRE_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_PRE_INDEXED:
         PreIndexed = M68K_TRUE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
         goto memory;
 
     case M68K_OT_MEM_REGISTER_PAIR:
@@ -1037,7 +1037,7 @@ mem_areg:
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_B:
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_L:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
 
 memory:
         AddOperandTypeAssembler(DTCtx, _M68KTextAsmOperandTypes[ATOT_MEMORY], TextCase);
@@ -1171,7 +1171,7 @@ memory:
     case M68K_OT_MEM_INDIRECT_POST_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_POST_INDEXED:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_TRUE;
+        PostIndexed = M68K_TRUE;
         goto memory;
 
     case M68K_OT_MEM_INDIRECT_PRE_DECREMENT:
@@ -1181,7 +1181,7 @@ memory:
     case M68K_OT_MEM_INDIRECT_PRE_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_PRE_INDEXED:
         PreIndexed = M68K_TRUE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
         goto memory;
 
     case M68K_OT_MEM_REGISTER_PAIR:
@@ -1529,7 +1529,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_B:
     case M68K_OT_MEM_PC_INDIRECT_INDEX_DISP_L:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
 
     memory:
         AddChar(DTCtx, '(', TC_NONE);
@@ -1616,7 +1616,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
     case M68K_OT_MEM_INDIRECT_POST_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_POST_INDEXED:
         PreIndexed = M68K_FALSE;
-        PostIndexed  = M68K_TRUE;
+        PostIndexed = M68K_TRUE;
         goto memory;
 
     case M68K_OT_MEM_INDIRECT_PRE_DECREMENT:
@@ -1626,7 +1626,7 @@ static M68K_BOOL AddOperandXL(PDISASM_TEXT_CONTEXT DTCtx, PM68K_OPERAND Operand,
     case M68K_OT_MEM_INDIRECT_PRE_INDEXED:
     case M68K_OT_MEM_PC_INDIRECT_PRE_INDEXED:
         PreIndexed = M68K_TRUE;
-        PostIndexed  = M68K_FALSE;
+        PostIndexed = M68K_FALSE;
         goto memory;
 
     case M68K_OT_MEM_REGISTER_PAIR:
@@ -2574,35 +2574,33 @@ M68K_BOOL M68KDefaultDisassembleTextFunc(PM68K_DISASM_TEXT_INFO TextInfo, PM68K_
             Result = M68K_TRUE;
             break;
 
-        case M68K_DTIF_FPU_CONDITION_CODE:
-            CopyText(_M68KTextFpuConditionCodes[TextInfo->Details.ConditionCode & (M68K_FPCC__SIZEOF__ - 1)], TextInfo->OutBuffer)[0] = 0;
-            Result = M68K_TRUE;
-            break;
-
         case M68K_DTIF_COPROCESSOR_CONDITION_CODE:
-            NextOutput = CopyImmPrefix(TextInfo->TextFlags, TextInfo->OutBuffer);
-            ConvertImmBHex(TextInfo->TextFlags, M68K_FALSE, (M68K_BYTE)(TextInfo->Details.CoprocessorCC & 0x3f), NextOutput)[0] = 0;
+                ConvertImmBHex(TextInfo->TextFlags, M68K_FALSE, (M68K_BYTE)(TextInfo->Details.CoprocessorCC & 0x3f), TextInfo->OutBuffer)[0] = 0;
             Result = M68K_TRUE;
             break;
 
         case M68K_DTIF_COPROCESSOR_ID:
-            NextOutput = CopyImmPrefix(TextInfo->TextFlags, TextInfo->OutBuffer);
-            ConvertImmBHex(TextInfo->TextFlags, M68K_FALSE, (M68K_BYTE)(TextInfo->Details.CoprocessorId & 7), NextOutput)[0] = 0;
+                ConvertImmBHex(TextInfo->TextFlags, M68K_FALSE, (M68K_BYTE)(TextInfo->Details.CoprocessorId & 7), TextInfo->OutBuffer)[0] = 0;
             Result = M68K_TRUE;
             break;
 
         case M68K_DTIF_DISPLACEMENT_B:
-            ConvertImmBHex(TextInfo->TextFlags, M68K_TRUE, (M68K_BYTE)(M68K_SBYTE)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
+                ConvertImmBHex(TextInfo->TextFlags, M68K_FALSE, (M68K_BYTE)(M68K_SBYTE)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
             Result = M68K_TRUE;
             break;
 
         case M68K_DTIF_DISPLACEMENT_L:
-            ConvertImmLHex(TextInfo->TextFlags, M68K_TRUE, (M68K_DWORD)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
+                ConvertImmLHex(TextInfo->TextFlags, M68K_FALSE, (M68K_DWORD)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
             Result = M68K_TRUE;
             break;
 
         case M68K_DTIF_DISPLACEMENT_W:
-            ConvertImmWHex(TextInfo->TextFlags, M68K_TRUE, (M68K_WORD)(M68K_SWORD)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
+                ConvertImmWHex(TextInfo->TextFlags, M68K_FALSE, (M68K_WORD)(M68K_SWORD)TextInfo->Details.Displacement, TextInfo->OutBuffer)[0] = 0;
+                Result = M68K_TRUE;
+                break;
+
+            case M68K_DTIF_FPU_CONDITION_CODE:
+                CopyText(_M68KTextFpuConditionCodes[TextInfo->Details.ConditionCode & (M68K_FPCC__SIZEOF__ - 1)], TextInfo->OutBuffer)[0] = 0;
             Result = M68K_TRUE;
             break;
 
@@ -2761,6 +2759,7 @@ M68K_BOOL M68KDefaultDisassembleTextFunc(PM68K_DISASM_TEXT_INFO TextInfo, PM68K_
 
         case M68K_DTIF_TEXT_COPROCESSOR_END:
             TextInfo->OutBuffer[0] = '>';
+
 single_char:
             TextInfo->OutBuffer[1] = 0;
             Result = M68K_TRUE;
