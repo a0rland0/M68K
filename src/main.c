@@ -1201,6 +1201,9 @@ int main(int argc, char* argv[])
 
 #ifdef M68K_INTERNAL_FUNCTIONS
     case CT_DISASSEMBLE_BINARY_FILE:
+        if (OptShowConfiguration)
+            PrintConfiguration("configuration");
+
         Exit(DisassembleBinaryFile(ParamFile) ? EXIT_SUCCESS : EXIT_FAILURE);
         break;
 
