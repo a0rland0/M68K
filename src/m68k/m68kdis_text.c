@@ -569,7 +569,7 @@ memory:
             (
                 (Operand->Info.Memory.Base == M68K_RT_NONE || Operand->Info.Memory.Base == M68K_RT_ZPC) &&
                 Operand->Info.Memory.Index.Register == M68K_RT_NONE &&
-                BaseDisplacementSize == M68K_SIZE_W && /* check "case 6:" in InitAModeOperandEx */
+                (BaseDisplacementSize == M68K_SIZE_W || BaseDisplacementSize == M68K_SIZE_L) && /* check "case 6:" in InitAModeOperandEx */
                 BaseDisplacementValue == 0 &&
                 Operand->Info.Memory.Displacement.OuterSize == M68K_SIZE_NONE
             )
