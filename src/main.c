@@ -700,18 +700,22 @@ static void PrintConfiguration(PM68KC_STR title)
 {
     printf(
         "%s:\n"
-        " arch            = 0x%08x\n"
-        " asm-flags       = 0x%04x\n"
-        " dis-flags       = 0x%04x\n"
-        " dis-text-format = %s\n"
-        " dis-text-flags  = 0x%04x\n"
-        " file-position   = %d\n"
-        " file-size       = 0x%08x\n"
-        " ref-addr        = 0x%08x\n",
+        " arch              = 0x%08x\n"
+        " asm-flags         = 0x%04x\n"
+        " asm-tests         = %s\n"
+        " dis-flags         = 0x%04x\n"
+        " dis-for-assembler = %s\n"
+        " dis-text-format   = %s\n"
+        " dis-text-flags    = 0x%04x\n"
+        " file-position     = %d\n"
+        " file-size         = 0x%08x\n"
+        " ref-addr          = 0x%08x\n",
         title,
         (M68K_UINT)OptArch,
         OptAsmFlags,
+        (OptAsmTests ? "yes" : "no"),
         OptDisFlags,
+        (OptDisForAssembler ? "yes" : "no"),
         OptDisTextFormat,
         OptDisTextFlags,
         OptFilePosition,
