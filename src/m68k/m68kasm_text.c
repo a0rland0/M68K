@@ -1559,14 +1559,14 @@ static M68K_BOOL ParseMnemonic(PASM_TEXT_CTX ATCtx, PM68K_INSTRUCTION_TYPE_VALUE
 
     if (ParseIdentifier(ATCtx, M68K_TRUE))
     {
-        PM68K_OPERAND FirstOperand = (Operand != NULL ? *Operand : M68K_NULL);
+        PM68K_OPERAND FirstOperand = (Operand != M68K_NULL ? *Operand : M68K_NULL);
 
         // search in the table of mnemonics
         M68K_INSTRUCTION_TYPE_VALUE iType = _M68KAsmTextCheckMnemonic(Start, ATCtx->Error.Location, FirstOperand);
         if (iType != M68K_IT_INVALID)
         {
             // requires an implicit operand?
-            if (FirstOperand != NULL)
+            if (FirstOperand != M68K_NULL)
             {
                 // was it used?
                 if (FirstOperand->Type != M68K_OT_NONE)
