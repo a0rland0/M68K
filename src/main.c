@@ -1050,12 +1050,12 @@ int main(int argc, char* argv[])
 
         // "-arch", "0x0001ffff",
         // "-asm-flags", "0x0002",
-        // "-asm-tests", 
+        "-asm-tests", 
         // "-dis-flags", "0x001f",
         // "-dis-for-assembler",
         // "-dis-text-format", "%40w %m%s%-%o",
         // "-dis-text-flags", "0x0051",
-        "-file-position", "0x22f22",
+        "-file-position", "0x00024cee",
         // "-file-size", "0x7fffffff",
         // "ref-addr", "0x00f80000",
 
@@ -1065,7 +1065,8 @@ int main(int argc, char* argv[])
             // "cprestore %cid(0x02), %m([&-0x0001270e],a2.w*2,0x000f4240)",
             // "touch %m(a3,a6.w*2,-0x64)",
             // "bank %ib(0x01), %ib(0x02), %ib(0x00), %ib(0x04)",
-            "touch %m(a0)"
+            // "touch %m(a0)"
+            "pflushs %r(sfc), %ib(0xb)"
         */
         
         /*
