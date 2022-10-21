@@ -63,7 +63,7 @@ static M68K_BOOL                    OptShowConfiguration = M68K_FALSE;
 static M68K_WORD    AsmBuffer[M68K_MAXIMUM_SIZE_INSTRUCTION_WORDS];
 static M68K_WORD    AsmBufferTest[M68K_MAXIMUM_SIZE_INSTRUCTION_WORDS];
 static M68K_CHAR    DisText[1024];
-static M68K_CHAR    DisTextTest[64];
+static M68K_CHAR    DisTextTest[128];
 
 // bytes for the disassembler
 static M68K_UINT ParamNumberBytes = 0;
