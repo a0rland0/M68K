@@ -1103,7 +1103,7 @@ typedef enum M68K_DISASM_TEXT_FLAGS
     M68K_DTFLG_C_HEXADECIMALS               = 0x0010,   // generate hexadecimal numbers with the "0xNNN" notation; the alternative/default notation is "$NNN" (forced by M68KDisassembleTextForAssembler/XL)
     M68K_DTFLG_SCALE_1                      = 0x0020,   // write X64_SCALE_1 as "*1" (forced by M68KDisassembleTextForAssembler/XL)
     M68K_DTFLG_HIDE_IMPLICIT_SIZES          = 0x0040,   // hide the size of the instructions that have an implicit size (supported by M68KDisassembleTextForAssembler/XL)
-    M68K_DTFLG_CONDITION_CODE_AS_OPERAND    = 0x0080,   // write the condition code as an operand (forced by M68KDisassembleTextForAssembler/XL)
+    M68K_DTFLG_CONDITION_CODE_AS_OPERAND    = 0x0080,   // write the condition code as an operand (forced by M68KDisassembleTextForXL)
     M68K_DTFLG_HIDE_IMMEDIATE_PREFIX        = 0x0100,   // hide the immediate prefix (forced by M68KDisassembleTextForAssembler/XL)
     M68K_DTFLG_DISPLACEMENT_AS_VALUE        = 0x0200,   // displacements are converted as values (supported by M68KDisassembleTextForAssembler/XL)
     M68K_DTFLG__DEFAULT__ = 
