@@ -2469,7 +2469,7 @@ static M68K_LUINT DisassembleFor(PM68K_WORD Address, PM68K_INSTRUCTION Instructi
     DTCtx.Output.Buffer = OutBuffer;
     DTCtx.Output.AvailSize = (OutBuffer != M68K_NULL ? OutSize : 0);
     DTCtx.Output.TotalSize = 0;
-    DTCtx.TextFlags = (Flags | M68K_DTFLG_C_HEXADECIMALS | M68K_DTFLG_SCALE_1 | M68K_DTFLG_CONDITION_CODE_AS_OPERAND | M68K_DTFLG_HIDE_IMMEDIATE_PREFIX);
+    DTCtx.TextFlags = (Flags | M68K_DTFLG_C_HEXADECIMALS | M68K_DTFLG_SCALE_1 | M68K_DTFLG_HIDE_IMMEDIATE_PREFIX);
 
     // all in lowercase?
     TEXT_CASE TextCase;
@@ -2483,9 +2483,51 @@ static M68K_LUINT DisassembleFor(PM68K_WORD Address, PM68K_INSTRUCTION Instructi
     else
         TextCase = TC_NONE;
 
+    // prepare the operands
+    M68K_UINT IndexFirstOperand = 0;
+    PM68K_OPERAND Operand = Instruction->Operands;
+
     // start with the mnemonic
-    M68K_INSTRUCTION_TYPE_VALUE Type = Instruction->Type >= M68K_IT_INVALID && Instruction->Type < M68K_IT__SIZEOF__ ? Instruction->Type : M68K_IT_INVALID;
-    AddText(&DTCtx, _M68KTextMnemonics[Type], 0, TextCase);
+    M68K_INSTRUCTION_TYPE Type = (Instruction->Type >= M68K_IT_INVALID && Instruction->Type < M68K_IT__SIZEOF__ ? (M68K_INSTRUCTION_TYPE)Instruction->Type : M68K_IT_INVALID);
+    PM68KC_CHAR MnemonicText = _M68KTextMnemonics[Type];
+    
+    // can we use mnemonic aliases?
+    if ((DTCtx.TextFlags & M68K_DTFLG_CONDITION_CODE_AS_OPERAND) == 0)
+    {
+        // first operand is a condition code?
+        if (Operand->Type == M68K_OT_CONDITION_CODE ||
+            Operand->Type == M68K_OT_FPU_CONDITION_CODE ||
+            Operand->Type == M68K_OT_MMU_CONDITION_CODE)
+        {
+            // the mnemonic alias can be written using the mnemonic prefix and the condition code text
+            M68K_UINT Index = 0;
+            while (MnemonicText[Index] != 0)
+                Index++;
+
+            if (Index > 2)
+            {
+                if (MnemonicText[Index - 2] == 'c' && MnemonicText[Index - 1] == 'c')
+                {
+                    AddText(&DTCtx, MnemonicText, Index - 2, TextCase);
+
+                    if (Operand->Type == M68K_OT_CONDITION_CODE)
+                        AddText(&DTCtx, _M68KTextConditionCodes[Operand->Info.ConditionCode], 0, TextCase);
+                    else if (Operand->Type == M68K_OT_FPU_CONDITION_CODE)
+                        AddText(&DTCtx, _M68KTextFpuConditionCodes[Operand->Info.FpuConditionCode], 0, TextCase);
+                    else // if (Operand->Type == M68K_OT_MMU_CONDITION_CODE)
+                        AddText(&DTCtx, _M68KTextMMUConditionCodes[Operand->Info.MMUConditionCode], 0, TextCase);
+
+                    // ignore the mnemonc and skip the first operand
+                    MnemonicText = M68K_NULL;
+                    Operand++;
+                    IndexFirstOperand++;
+                }
+            }
+        }
+    }
+    
+    if (MnemonicText != M68K_NULL)
+        AddText(&DTCtx, MnemonicText, 0, TextCase);
 
     // requires a size?
     if (Instruction->Size != M68K_SIZE_NONE)
@@ -2505,9 +2547,8 @@ static M68K_LUINT DisassembleFor(PM68K_WORD Address, PM68K_INSTRUCTION Instructi
 
     // write all operands
     M68K_BOOL IgnoreNextSeparator = M68K_TRUE;
-    PM68K_OPERAND Operand = Instruction->Operands;
 
-    for (M68K_UINT Index = 0; Index < M68K_MAXIMUM_NUMBER_OPERANDS; Index++, Operand++)
+    for (M68K_UINT Index = IndexFirstOperand; Index < M68K_MAXIMUM_NUMBER_OPERANDS; Index++, Operand++)
     {
         // reached the last operand? this is identified by an operand with a type M68K_OT_NONE
         if (Operand->Type == M68K_OT_NONE)
@@ -2676,12 +2717,9 @@ M68K_BOOL M68KDefaultDisassembleTextFunc(PM68K_DISASM_TEXT_INFO TextInfo, PM68K_
                                         CCText = _M68KTextConditionCodes[TextInfo->Instruction->Operands[0].Info.ConditionCode & (M68K_CC__SIZEOF__ - 1)];
                                     else if (TextInfo->Instruction->Operands[0].Type == M68K_OT_FPU_CONDITION_CODE)
                                         CCText = _M68KTextFpuConditionCodes[TextInfo->Instruction->Operands[0].Info.FpuConditionCode & (M68K_FPCC__SIZEOF__ - 1)];
-                                    else if (TextInfo->Instruction->Operands[0].Type == M68K_OT_MMU_CONDITION_CODE)
+                                    else // if (TextInfo->Instruction->Operands[0].Type == M68K_OT_MMU_CONDITION_CODE)
                                         CCText = _M68KTextMMUConditionCodes[TextInfo->Instruction->Operands[0].Info.MMUConditionCode & (M68K_MMUCC__SIZEOF__ - 1)];
-                                    else
-                                        CCText = M68K_NULL;
 
-                                    if (CCText != M68K_NULL)
                                         NextOutput = CopyText(CCText, NextOutput - 2);
                                 }
                             }
@@ -3073,5 +3111,5 @@ M68K_LUINT M68KDisassembleTextForAssembler(PM68K_WORD Address, PM68K_INSTRUCTION
 // convert a disassembled instruction to a text that can be used in the XL language
 M68K_LUINT M68KDisassembleTextForXL(PM68K_INSTRUCTION Instruction, M68K_DISASM_TEXT_FLAGS_VALUE Flags, PM68K_CHAR OutBuffer, M68K_LUINT OutSize /*maximum in chars*/)
 {
-    return DisassembleFor(M68K_NULL, Instruction, Flags | M68K_DTFLG_IGNORE_SIGN, OutBuffer, OutSize, AddOperandXL);
+    return DisassembleFor(M68K_NULL, Instruction, Flags | M68K_DTFLG_IGNORE_SIGN | M68K_DTFLG_CONDITION_CODE_AS_OPERAND, OutBuffer, OutSize, AddOperandXL);
 }
