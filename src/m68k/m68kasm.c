@@ -2780,6 +2780,10 @@ M68K_WORD M68KAssemble(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_A
                         PM68KC_WORD NextWord = OpcodeMap + OpcodeMapIndex;
                         
                         ACtx.IInfo = _M68KInstrTypeInfos + NextWord[1];
+
+                        // start by checking the architecture
+                        if ((ACtx.IInfo->Architectures & ACtx.Architectures) != 0)
+                        {
                         ACtx.NextOperand = ACtx.Instruction->Operands;
                         ACtx.NextConvOperand = ACtx.ConvOperands;
                         ACtx.Opcodes.NumberWords = 1;
@@ -2792,9 +2796,6 @@ M68K_WORD M68KAssemble(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_A
                         ACtx.UsesPredecrement = M68K_FALSE;
                         ACtx.UsesRegisterList = M68K_FALSE;
 
-                        // start by checking the architecture
-                        if ((ACtx.IInfo->Architectures & ACtx.Architectures) != 0)
-                        {
                             // requires one or more extension words?
                             if ((ACtx.IInfo->IFlags & IF_EXTENSION_WORD_1) != 0)
                             {
