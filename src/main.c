@@ -25,9 +25,10 @@
 #define FMT_REFADDR         "0x%08x"
 #define MAX_BINARY_SIZE     (3 * 1024 * 1024)
 #define MAX_NUMBER_BYTES    256
-#define VERSION             "2.2 (" __DATE__ " " __TIME__ ")"
+#define VERSION             "2.3 (" __DATE__ " " __TIME__ ")"
 
 // forward declarations
+static void         AsmPrintDifferentWords(PM68K_WORD Start1, M68K_UINT NumberWords1, PM68K_WORD Start2, M68K_UINT NumberWords2);
 static void         AsmTest(PM68K_WORD address, PM68K_INSTRUCTION instruction, M68K_BOOL testText);
 static void         CantConvertValueForOption(PM68KC_STR argOption);
 static COMMAND_TYPE CheckArguments(int argc, char **argv);
@@ -76,6 +77,39 @@ static PM68KC_STR ParamFile3 = NULL;
 // text for the assembler
 static PM68KC_STR ParamText = NULL;
 
+// print the different words that exist between two instructions
+static void AsmPrintDifferentWords(PM68K_WORD Start1, M68K_UINT NumberWords1, PM68K_WORD Start2, M68K_UINT NumberWords2)
+{
+    M68K_UINT maxNumberWords = (NumberWords1 > NumberWords2 ? NumberWords1 : NumberWords2);
+
+    for (M68K_UINT index = 0; index < maxNumberWords; index++)
+    {
+        M68K_DWORD word1 = (index < NumberWords1 ? (M68K_DWORD)M68KReadWord(Start1 + index) : (M68K_DWORD)0x10000);
+        M68K_DWORD word2 = (index < NumberWords2 ? (M68K_DWORD)M68KReadWord(Start2 + index) : (M68K_DWORD)0x20000);
+
+        if (word1 == word2)
+            printf("%04x ", word1);
+        else
+        {
+            if (word1 < 0x10000)
+                printf("%04x", word1);
+            else
+                putc('?', stdout);
+
+            putc('/', stdout);
+
+            if (word2 < 0x10000)
+                printf("%04x", word2);
+            else
+                putc('?', stdout);
+
+            putc(' ', stdout);
+        }
+    }
+
+    puts("");
+}
+
 // test the assembler engine
 static void AsmTest(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_BOOL TestText)
 {
@@ -92,7 +126,8 @@ static void AsmTest(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_BOOL
     // same number of words?
     if (numberWords != numberWordsTest)
     {
-        printf("serr: the instruction has a different size: %u != %u\n", numberWords, numberWordsTest);
+        printf("serr: the instruction has a different size (%u != %u): ", numberWords, numberWordsTest);
+        AsmPrintDifferentWords(Instruction->Start, numberWords, AsmBufferTest, numberWordsTest);
         return;
     }
 
@@ -100,16 +135,7 @@ static void AsmTest(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_BOOL
     if (memcmp(Instruction->Start, AsmBufferTest, (M68K_LWORD)numberWords << 1) != 0)
     {
         printf("serr: the instruction has different opcodes: ");
-
-        for (M68K_UINT index = 0; index < numberWords; index++)
-        {
-            if (Instruction->Start[index] == AsmBufferTest[index])
-                printf("%04x ", M68KReadWord(Instruction->Start + index));
-            else
-                printf("%04x/%04x ", M68KReadWord(Instruction->Start + index), M68KReadWord(AsmBufferTest + index));
-        }
-
-        puts("");
+        AsmPrintDifferentWords(Instruction->Start, numberWords, AsmBufferTest, numberWordsTest);
         return;
     }
     
@@ -136,7 +162,8 @@ static void AsmTest(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_BOOL
         // same number of words?
         if (numberWords != numberWordsTest)
         {
-            printf("terr: the instruction has a different size when using the text: %u != %u\n", numberWords, numberWordsTest);
+            printf("terr: the instruction has a different size when using the text (%u != %u): ", numberWords, numberWordsTest);
+            AsmPrintDifferentWords(Instruction->Start, numberWords, AsmBufferTest, numberWordsTest);
             return;
         }
 
@@ -144,16 +171,7 @@ static void AsmTest(PM68K_WORD Address, PM68K_INSTRUCTION Instruction, M68K_BOOL
         if (memcmp(Instruction->Start, AsmBufferTest, (M68K_LWORD)numberWords << 1) != 0)
         {
             printf("terr: the instruction has different opcodes when using the text: ");
-
-            for (M68K_UINT index = 0; index < numberWords; index++)
-            {
-                if (Instruction->Start[index] == AsmBufferTest[index])
-                    printf("%04x ", M68KReadWord(Instruction->Start + index));
-                else
-                    printf("%04x/%04x ", M68KReadWord(Instruction->Start + index), M68KReadWord(AsmBufferTest + index));
-            }
-
-            puts("");
+            AsmPrintDifferentWords(Instruction->Start, numberWords, AsmBufferTest, numberWordsTest);
             return;
         }
     }
