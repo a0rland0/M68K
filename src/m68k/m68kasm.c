@@ -2109,7 +2109,7 @@ fpreglist_ew1:
                 // 68851 => 0..15
                 Operand->Info.Byte > 15 ||
                 // 68030 => 0..7
-                ((ACtx->Architectures & M68K_ARCH_68030) != 0 && Operand->Info.Byte > 7))
+                ((ACtx->Architectures & (M68K_ARCH_68030 | M68K_ARCH_68851)) == M68K_ARCH_68030 && Operand->Info.Byte > 7))
                 break;
 
             ACtx->Opcodes.Words[1] &= ~0x01e0;
